@@ -1,29 +1,63 @@
-This is basically  for testing and validating changes to docling codebase, which can be tested by downloading the folders in the "site-packages" folder and either create a new environement and 
-place these folders in the same folder where your packages installed via pip get installed to or directly replace the respective docling folders within your existing environments site-packages folder.
+# Modified & Enhanced Docling (docling_mod)
 
-After that you may need to install 1 or two dependencies, "accelerate" and "flash-attn2" are the main ones. Within the data folder is a folder with academic journal articles , which are to be used to test the 
-stability of the docling pipeline when testing the scripts in the "scripts" folder, which include:
+This repository contains a modified and significantly enhanced version of IBM's Docling library, designed for high-throughput, robust analysis of scholarly articles. These modifications were developed to overcome specific limitations in the original library related to performance, accuracy, and stability, as detailed in my [technical report](https://agodinezmm2007.github.io/project_portfolio/05-technical-report.html#stage-4-content-extraction-via-document-layout-analysis).
 
-- scripts/docling_extract_formulas_debug.py
-- scripts/docling_extract_formulas_debug_mp_mult.py
-- scripts/docling_extract_formulas_mp_multi.py
-- scripts/docling_test_single_GPU.py
-- scripts/docling_test_nb.ipynb
+The code here is primarily for testing and validation purposes.
 
-  As you can deduce from the file names, two of these are meant for testing docling across multiple GPUs. Ive only tested it on 2 max, for some reason it causes a CUDA error when i run it on a chinese 4090d.
-  This may be an issue specific to that 4090d GPU however, i tested this on a single 12gb 4070 super it ran just fine.
+## Key Features & Enhancements
 
-  For debugging if you want docling to save the formula snippets and the images showing the bounding boxes on the layouts its something you need to uncomment this part:
-  https://github.com/agodinezmm2007/docling_mod/blob/ea18bf4a42373318ed9d108c4ca8d597a19a1151/site-packages/docling/datamodel/base_models.py#L341
+This modified version includes several critical enhancements over the base Docling library:
 
-  but that is to see the masked pages from where the formula snippets are generated. to save and export the actual formula snippets themselves you uncomment a line somewhere around here:
+- **Multi-GPU Parallelization:** A custom architecture using Python's `ProcessPoolExecutor` allows Docling to run as a distributed application across multiple GPUs, dramatically reducing processing time.
+- **Efficient Formula Recognition:** Replaced the resource-intensive (30 GB VRAM) formula model with SmolDocling model, reducing VRAM requirements to 8 GB and making it usable on smaller GPUs (12 GB 4070 Super).
+- **Advanced Layout Post-Processing:** Engineered rule-based heuristics to automatically correct common layout analysis errors, such as merging fragmented mathematical formulas and re-classifying entire pages that were misidentified as tables.
+- **Stability Fixes:** Addressed persistent glyph-parsing errors by reverse-engineering and patching the core C-extension library, preventing crashes during large-scale runs.
 
-  https://github.com/agodinezmm2007/docling_mod/blob/ea18bf4a42373318ed9d108c4ca8d597a19a1151/site-packages/docling_ibm_models/code_formula_model/code_formula_predictor.py#L280
+## Installation
 
-  Also, the data folder includes two log files to validate the data processing.
+It is strongly recommended to use a dedicated virtual environment (like `venv` or `conda`) to avoid conflicts with existing packages.
 
-  If someone wanted to, they could just clone the repository, get the packages where they need to go, install missing dependencies, then run the test through the jupyer notebook you already get 190 journal articles converted to markdown, along
-  with associated metadata. What you chose to do with that is up to you.
+1. **Create and activate a new virtual environment.**
+2. **Install Base Docling:** First, install the original `docling` package and its dependencies via pip. This will ensure all base requirements are met.
+3. **Replace with Modified Files:** Copy the folders from the `site-packages` directory in this repository into your virtual environment's `site-packages` folder, replacing the original `docling` and `docling_ibm_models` folders.
+4. **Install Additional Dependencies:** You will likely need to install a few extra packages. The main ones are:
 
-  There are a few things to look out for, it seems that when docling tries to process pdf articles having to do with prompting it will completely stop the system. It still treats some pages as tables i havent had a chance to go back and troubleshoot
-  that. Formula extraction uses SmolDocling so it should be able to be used in smaller GPUs, running it on a 12gb 4070 Super and processing 50 articles confirms this. However, more VRAM will always equal more better. 
+```bash
+   pip install accelerate flash-attn
+```
+
+## How to Test
+
+This repository includes scripts and sample data to test the stability and functionality of the modified pipeline.
+
+### Test Data
+
+The `data/` folder contains a subfolder with **190 academic journal articles** ready for processing.
+
+### Test Scripts
+
+The `scripts/` folder contains several scripts to run the pipeline:
+
+- `scripts/docling_test_single_GPU.py` — Tests processing on a single GPU.  
+- `scripts/docling_extract_formulas_mp_multi.py` — Tests processing across multiple GPUs.  
+- `scripts/docling_test_nb.ipynb` — A Jupyter Notebook that provides a step-by-step walkthrough of the process. This is the easiest way to get started.
+
+## Debugging
+
+If you want to visualize the model's intermediate steps, you can uncomment lines in the source code:
+
+- **To Save Masked Page Images:**  
+  Uncomment the `Image.save()` line around here in `[base_models.py](https://github.com/agodinezmm2007/docling_mod/blob/ea18bf4a42373318ed9d108c4ca8d597a19a1151/site-packages/docling/datamodel/base_models.py#L341)`. This shows the page with all non-formula content grayed out.
+
+- **To Save Formula Snippets:**  
+  Uncomment the `snippet.save()` line around here in `[code_formula_predictor.py](https://github.com/agodinezmm2007/docling_mod/blob/ea18bf4a42373318ed9d108c4ca8d597a19a1151/site-packages/docling_ibm_models/code_formula_model/code_formula_predictor.py#L280)`. This saves the cropped image of each formula sent to the "SmolDocling" model.
+
+## Known Issues & Limitations
+
+- **Stability:** The system may crash when processing certain PDFs, particularly those containing "prompting", mainly from articles discussing LLMs. This is a known issue that requires further troubleshooting.  
+- **Layout Errors:** Some pages are still occasionally misclassified as large tables. The post-processing heuristics catch many of these but not all.  
+- **Multi-GPU Errors:** While multi-GPU processing has been tested successfully on two GPUs, it has caused CUDA errors on a specific model (a Chinese-market 4090D). This may be a hardware-specific issue. 
+
+
+
+
