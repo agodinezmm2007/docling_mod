@@ -47,16 +47,16 @@ The `scripts/` folder contains several scripts to run the pipeline:
 If you want to visualize the model's intermediate steps, you can uncomment lines in the source code:
 
 - **To Save Masked Page Images:**  
-  Uncomment the `Image.save()` line around here in `[base_models.py](https://github.com/agodinezmm2007/docling_mod/blob/ea18bf4a42373318ed9d108c4ca8d597a19a1151/site-packages/docling/datamodel/base_models.py#L341)`. This shows the page with all non-formula content grayed out.
+  Uncomment the `Image.save()` line around here in [base_models.py](https://github.com/agodinezmm2007/docling_mod/blob/ea18bf4a42373318ed9d108c4ca8d597a19a1151/site-packages/docling/datamodel/base_models.py#L341). This shows the page with all non-formula content grayed out.
 
 - **To Save Formula Snippets:**  
-  Uncomment the `snippet.save()` line around here in `[code_formula_predictor.py](https://github.com/agodinezmm2007/docling_mod/blob/ea18bf4a42373318ed9d108c4ca8d597a19a1151/site-packages/docling_ibm_models/code_formula_model/code_formula_predictor.py#L280)`. This saves the cropped image of each formula sent to the "SmolDocling" model.
+  Uncomment the `snippet.save()` line around here in [code_formula_predictor.py](https://github.com/agodinezmm2007/docling_mod/blob/ea18bf4a42373318ed9d108c4ca8d597a19a1151/site-packages/docling_ibm_models/code_formula_model/code_formula_predictor.py#L280). This saves the cropped image of each formula sent to the "SmolDocling" model.
 
 ## Known Issues & Limitations
 
 - **Stability:** The system may crash when processing certain PDFs, particularly those containing "prompting", mainly from articles discussing LLMs. This is a known issue that requires further troubleshooting.  
 - **Layout Errors:** Some pages are still occasionally misclassified as large tables. The post-processing heuristics catch many of these but not all.  
-- **Multi-GPU Errors:** While multi-GPU processing has been tested successfully on two GPUs, it has caused CUDA errors on a specific model (a Chinese-market 4090D). This may be a hardware-specific issue. 
+- **GPU Errors:** While multi-GPU processing has been tested successfully on two NVlinked Ampere RTX A6000 GPUs, it has caused CUDA errors on a specific model (a Chinese-market 4090D). This may be a hardware-specific issue as it does not occur on the A6000s or the 4070. 
 
 
 
