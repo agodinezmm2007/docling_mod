@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 PDF invisible text analysis and removal.
 
@@ -9,15 +8,50 @@ and parallel batch processing into one module.
 Usage:
     python pdf_cleaner.py analyze <input.pdf> [--method spans|stream] [--max-pages N]
     python pdf_cleaner.py clean <input.pdf> [output.pdf] [--method ghostscript|content_stream]
-    python pdf_cleaner.py batch <input_dir> <output_dir> [--method ghostscript|content_stream] [--workers N] [--timeout N]
+    python pdf_cleaner.py batch [input_dir] [output_dir] [--workers N] [--timeout N]
+
+Batch runs the full pipeline per PDF: analyze (spans + stream) -> clean (content stream) -> clean (ghostscript).
+Defaults: input=data/NEW_ETL_PDF, output=scripts/sample_pdfs_cleaned.
+All activity logged to scripts/logs/pdf_cleaner.log.
 """
 
 import argparse
+import logging
 import multiprocessing
 import subprocess
 import sys
+import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = SCRIPT_DIR.parent
+DEFAULT_INPUT_DIR = PROJECT_DIR / "data" / "NEW_ETL_PDF"
+DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "sample_pdfs_cleaned"
+
+LOG_DIR = SCRIPT_DIR / "logs"
+LOG_FILE = LOG_DIR / "pdf_cleaner.log"
+
+logger = logging.getLogger("pdf_cleaner")
+
+
+def _setup_logging():
+    """Configure logging with file handler. Safe to call multiple times (clears existing handlers)."""
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.setLevel(logging.DEBUG)
+    fh = logging.FileHandler(str(LOG_FILE), mode='a')
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter(
+        '%(asctime)s - %(processName)s[%(process)d] - %(levelname)s - %(message)s'
+    ))
+    root.addHandler(fh)
+
+
+def _worker_init():
+    """Initialize logging in each worker process."""
+    _setup_logging()
 
 
 # ---------------------------------------------------------------------------
@@ -33,36 +67,49 @@ def analyze_spans(pdf_path, max_pages=5):
     """
     import fitz
 
-    doc = fitz.open(pdf_path)
-    results = []
+    logger.info("analyze_spans: %s (max_pages=%d)", pdf_path, max_pages)
+    doc = None
+    try:
+        doc = fitz.open(pdf_path)
+        results = []
 
-    for page_num in range(min(max_pages, len(doc))):
-        page = doc[page_num]
-        text_dict = page.get_text("dict", flags=fitz.TEXTFLAGS_TEXT)
-
-        for block in text_dict.get("blocks", []):
-            if block.get("type") != 0:
+        for page_num in range(min(max_pages, len(doc))):
+            try:
+                page = doc[page_num]
+                text_dict = page.get_text("dict", flags=fitz.TEXTFLAGS_TEXT)
+            except Exception as e:
+                logger.warning("analyze_spans: page %d error in %s: %s", page_num + 1, pdf_path, e)
                 continue
-            for line in block.get("lines", []):
-                for span in line.get("spans", []):
-                    text = span.get("text", "")
-                    if not text.strip():
-                        continue
-                    color = span.get("color", 0)
-                    size = span.get("size", 0)
-                    flags = span.get("flags", 0)
-                    results.append({
-                        "text": text[:80],
-                        "color": color,
-                        "size": size,
-                        "flags": flags,
-                        "page": page_num + 1,
-                        "white": color >= 0xF0F0F0,
-                        "tiny": size < 1.0,
-                    })
 
-    doc.close()
-    return results
+            for block in text_dict.get("blocks", []):
+                if block.get("type") != 0:
+                    continue
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        text = span.get("text", "")
+                        if not text.strip():
+                            continue
+                        color = span.get("color", 0)
+                        size = span.get("size", 0)
+                        flags = span.get("flags", 0)
+                        results.append({
+                            "text": text[:80],
+                            "color": color,
+                            "size": size,
+                            "flags": flags,
+                            "page": page_num + 1,
+                            "white": color >= 0xF0F0F0,
+                            "tiny": size < 1.0,
+                        })
+
+        logger.info("analyze_spans complete: %d spans from %s", len(results), pdf_path)
+        return results
+    except Exception:
+        logger.exception("analyze_spans failed for %s", pdf_path)
+        raise
+    finally:
+        if doc is not None:
+            doc.close()
 
 
 def analyze_content_stream(pdf_path):
@@ -75,21 +122,21 @@ def analyze_content_stream(pdf_path):
     import pikepdf
     from pikepdf import Pdf, Operator
 
-    pdf = Pdf.open(pdf_path)
-    results = []
+    logger.info("analyze_content_stream: %s", pdf_path)
+    pdf = None
+    try:
+        pdf = Pdf.open(pdf_path)
+        results = []
 
-    for page_num, page in enumerate(pdf.pages):
-        if "/Contents" not in page:
-            continue
+        for page_num, page in enumerate(pdf.pages):
+            if "/Contents" not in page:
+                continue
 
-        contents = page.Contents
-        if not isinstance(contents, list):
-            contents = [contents]
-
-        for content in contents:
             try:
-                parsed = pikepdf.parse_content_stream(content)
-            except Exception:
+                parsed = pikepdf.parse_content_stream(page)
+            except Exception as e:
+                logger.warning("analyze_content_stream: page %d parse error in %s: %s",
+                               page_num + 1, pdf_path, e)
                 continue
 
             render_mode = 0
@@ -130,8 +177,14 @@ def analyze_content_stream(pdf_path):
                             "page": page_num + 1,
                         })
 
-    pdf.close()
-    return results
+        logger.info("analyze_content_stream complete: %d text items from %s", len(results), pdf_path)
+        return results
+    except Exception:
+        logger.exception("analyze_content_stream failed for %s", pdf_path)
+        raise
+    finally:
+        if pdf is not None:
+            pdf.close()
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +204,7 @@ def clean_content_stream(input_path, output_path=None):
     Returns stats dict with counts per category and total removed.
     """
     import pikepdf
-    from pikepdf import Pdf, Operator, Array
+    from pikepdf import Pdf, Operator
 
     input_path = Path(input_path)
     if output_path is None:
@@ -159,34 +212,33 @@ def clean_content_stream(input_path, output_path=None):
     else:
         output_path = Path(output_path)
 
-    pdf = Pdf.open(input_path)
+    logger.info("clean_content_stream: %s -> %s", input_path, output_path)
 
-    stats = {
-        "render_mode_3": 0,
-        "zero_font_size": 0,
-        "clipped": 0,
-        "white_text": 0,
-        "total_removed": 0,
-    }
+    pdf = None
+    try:
+        pdf = Pdf.open(input_path)
 
-    for page_num, page in enumerate(pdf.pages):
-        if "/Contents" not in page:
-            continue
+        stats = {
+            "render_mode_3": 0,
+            "zero_font_size": 0,
+            "clipped": 0,
+            "white_text": 0,
+            "total_removed": 0,
+        }
 
-        contents = page.Contents
-        if not isinstance(contents, list):
-            contents = [contents]
+        for page_num, page in enumerate(pdf.pages):
+            if "/Contents" not in page:
+                continue
 
-        content_streams = []
-        for content in contents:
             try:
-                parsed = pikepdf.parse_content_stream(content)
+                parsed = pikepdf.parse_content_stream(page)
             except Exception as e:
-                print(f"Warning: page {page_num + 1} content stream error: {e}")
-                content_streams.append(content)
+                logger.warning("clean_content_stream: page %d parse error in %s: %s",
+                               page_num + 1, input_path.name, e)
                 continue
 
             filtered_ops = []
+            page_removed = 0
             render_mode = 0
             font_size = 12
             in_clipping = False
@@ -248,6 +300,7 @@ def clean_content_stream(input_path, output_path=None):
                 ]:
                     if skip_next_text or in_clipping or current_color == "white":
                         stats["total_removed"] += 1
+                        page_removed += 1
                         skip_next_text = False
                         continue
 
@@ -257,18 +310,35 @@ def clean_content_stream(input_path, output_path=None):
 
                 filtered_ops.append([operands, operator])
 
-            new_content = pikepdf.unparse_content_stream(filtered_ops)
-            content_streams.append(new_content)
+            if page_removed > 0:
+                logger.debug("clean_content_stream: page %d of %s: removed %d text operators",
+                             page_num + 1, input_path.name, page_removed)
 
-        if len(content_streams) == 1:
-            page.Contents = pdf.make_stream(content_streams[0])
-        elif len(content_streams) > 1:
-            page.Contents = Array([pdf.make_stream(cs) for cs in content_streams])
+            # Write filtered content back as a single stream
+            try:
+                new_content = pikepdf.unparse_content_stream(filtered_ops)
+                page.Contents = pdf.make_stream(new_content)
+            except Exception as e:
+                logger.error("clean_content_stream: failed to write page %d for %s: %s",
+                             page_num + 1, input_path.name, e, exc_info=True)
+                raise
 
-    pdf.save(output_path)
-    pdf.close()
+        try:
+            pdf.save(output_path)
+        except Exception as e:
+            logger.error("clean_content_stream: failed to save %s: %s", output_path, e, exc_info=True)
+            raise
 
-    return stats
+        logger.info("clean_content_stream complete: %s | render_mode_3=%d, zero_font=%d, clipped=%d, white=%d, total_removed=%d",
+                     input_path.name, stats["render_mode_3"], stats["zero_font_size"],
+                     stats["clipped"], stats["white_text"], stats["total_removed"])
+        return stats
+    except Exception:
+        logger.exception("clean_content_stream failed for %s", input_path)
+        raise
+    finally:
+        if pdf is not None:
+            pdf.close()
 
 
 def clean_ghostscript(input_path, output_path=None, timeout=120):
@@ -282,6 +352,8 @@ def clean_ghostscript(input_path, output_path=None, timeout=120):
         output_path = input_path.parent / f"{input_path.stem}_cleaned.pdf"
     else:
         output_path = Path(output_path)
+
+    logger.info("clean_ghostscript: %s -> %s (timeout=%d)", input_path, output_path, timeout)
 
     cmd = [
         "gs",
@@ -302,51 +374,139 @@ def clean_ghostscript(input_path, output_path=None, timeout=120):
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         if result.returncode == 0:
+            logger.info("clean_ghostscript success: %s", input_path.name)
             return True, None
-        return False, result.stderr[:300]
+        error_msg = result.stderr[:500]
+        logger.error("clean_ghostscript failed (rc=%d): %s | %s", result.returncode, input_path.name, error_msg)
+        return False, error_msg
     except subprocess.TimeoutExpired:
+        logger.error("clean_ghostscript timeout after %ds: %s", timeout, input_path.name)
         return False, f"Timeout after {timeout} seconds"
     except FileNotFoundError:
+        logger.error("clean_ghostscript: Ghostscript (gs) not found in PATH")
         return False, "Ghostscript not found. Install with: sudo apt-get install ghostscript"
     except Exception as e:
-        return False, str(e)[:300]
+        logger.exception("clean_ghostscript error for %s", input_path.name)
+        return False, str(e)[:500]
 
 
 # ---------------------------------------------------------------------------
 # batch processing
 # ---------------------------------------------------------------------------
 
-def _batch_worker_gs(args):
-    """Worker function for parallel Ghostscript cleaning."""
+def _batch_worker(args):
+    """
+    Worker function: full pipeline per PDF.
+    1. Analyze with both methods (spans + content stream) and log findings
+    2. Clean with content stream filtering (surgical removal)
+    3. Clean with Ghostscript re-render (final pass)
+    """
     pdf_path, output_dir, timeout = args
     pdf_path = Path(pdf_path)
     output_path = Path(output_dir) / pdf_path.name
-    success, error = clean_ghostscript(pdf_path, output_path, timeout)
-    return str(pdf_path), success, error
+    file_start = time.time()
 
+    result = {
+        "analysis": {"spans": None, "stream": None},
+        "cleaning": {"content_stream": None, "ghostscript": None},
+        "error": None,
+    }
 
-def _batch_worker_cs(args):
-    """Worker function for parallel content stream cleaning."""
-    pdf_path, output_dir, _ = args
-    pdf_path = Path(pdf_path)
-    output_path = Path(output_dir) / pdf_path.name
     try:
-        stats = clean_content_stream(pdf_path, output_path)
-        return str(pdf_path), True, None
+        # --- Phase 1: Analyze ---
+        try:
+            span_results = analyze_spans(pdf_path)
+            white_count = sum(1 for r in span_results if r["white"])
+            tiny_count = sum(1 for r in span_results if r["tiny"])
+            result["analysis"]["spans"] = {
+                "total_spans": len(span_results),
+                "white_text": white_count,
+                "tiny_text": tiny_count,
+            }
+            if white_count or tiny_count:
+                logger.info("ANALYSIS %s: spans found %d white, %d tiny text out of %d spans",
+                            pdf_path.name, white_count, tiny_count, len(span_results))
+        except Exception as e:
+            logger.warning("ANALYSIS %s: span analysis failed: %s", pdf_path.name, e)
+
+        try:
+            stream_results = analyze_content_stream(pdf_path)
+            invisible_count = sum(1 for r in stream_results if r["render_mode"] == 3)
+            tiny_font_count = sum(1 for r in stream_results if abs(r["font_size"]) < 0.5)
+            result["analysis"]["stream"] = {
+                "total_items": len(stream_results),
+                "invisible_render_mode": invisible_count,
+                "tiny_font": tiny_font_count,
+            }
+            if invisible_count or tiny_font_count:
+                logger.info("ANALYSIS %s: stream found %d invisible (render mode 3), %d tiny font out of %d items",
+                            pdf_path.name, invisible_count, tiny_font_count, len(stream_results))
+        except Exception as e:
+            logger.warning("ANALYSIS %s: content stream analysis failed: %s", pdf_path.name, e)
+
+        # --- Phase 2: Clean with content stream filtering ---
+        try:
+            cs_stats = clean_content_stream(pdf_path, output_path)
+            result["cleaning"]["content_stream"] = cs_stats
+        except Exception as e:
+            logger.error("CLEAN %s: content stream cleaning failed: %s", pdf_path.name, e)
+            # If content stream cleaning fails, copy original to output for ghostscript pass
+            try:
+                import shutil
+                shutil.copy2(pdf_path, output_path)
+            except Exception as copy_err:
+                logger.error("CLEAN %s: failed to copy original for ghostscript fallback: %s",
+                             pdf_path.name, copy_err)
+
+        # --- Phase 3: Clean with Ghostscript re-render ---
+        # Run ghostscript on the output from phase 2 (or the original if phase 2 failed)
+        if output_path.exists():
+            gs_input = output_path
+            gs_temp = output_path.parent / f"{output_path.stem}_gs_temp.pdf"
+            try:
+                gs_success, gs_error = clean_ghostscript(gs_input, gs_temp, timeout)
+                if gs_success:
+                    gs_temp.replace(output_path)
+                    result["cleaning"]["ghostscript"] = {"success": True}
+                else:
+                    result["cleaning"]["ghostscript"] = {"success": False, "error": gs_error}
+                    logger.warning("CLEAN %s: ghostscript pass failed: %s", pdf_path.name, gs_error)
+                    # Keep the content-stream-cleaned version
+            except Exception as e:
+                result["cleaning"]["ghostscript"] = {"success": False, "error": str(e)[:500]}
+                logger.error("CLEAN %s: ghostscript pass error: %s", pdf_path.name, e)
+            finally:
+                if gs_temp.exists():
+                    gs_temp.unlink()
+        else:
+            # Neither cleaning method produced output
+            gs_success, gs_error = clean_ghostscript(pdf_path, output_path, timeout)
+            result["cleaning"]["ghostscript"] = {"success": gs_success, "error": gs_error}
+
+        elapsed = time.time() - file_start
+        logger.info("DONE %s in %.1fs | cs_removed=%d, gs=%s",
+                     pdf_path.name, elapsed,
+                     cs_stats["total_removed"] if result["cleaning"]["content_stream"] else 0,
+                     "ok" if result["cleaning"].get("ghostscript", {}).get("success") else "failed")
+
+        return str(pdf_path), True, result
+
     except Exception as e:
-        return str(pdf_path), False, str(e)[:300]
+        logger.exception("WORKER CRASH for %s", pdf_path.name)
+        result["error"] = str(e)[:500]
+        return str(pdf_path), False, result
 
 
-def batch_clean(input_dir, output_dir, method="ghostscript", max_workers=None, timeout=120):
+def batch_clean(input_dir, output_dir, max_workers=None, timeout=120):
     """
-    Clean all PDFs in a directory using parallel processing.
+    Clean all PDFs in a directory using the full pipeline:
+    analyze (spans + stream) -> clean (content stream) -> clean (ghostscript).
 
     Args:
         input_dir: Directory containing PDFs.
         output_dir: Output directory for cleaned PDFs.
-        method: "ghostscript" or "content_stream".
         max_workers: Number of parallel workers (default: min(cpu_count, 8)).
-        timeout: Per-file timeout in seconds (Ghostscript only).
+        timeout: Per-file timeout in seconds (Ghostscript).
 
     Returns:
         (success_count, failed_count, failed_files) where failed_files is
@@ -354,57 +514,108 @@ def batch_clean(input_dir, output_dir, method="ghostscript", max_workers=None, t
     """
     input_path = Path(input_dir)
     output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
 
-    pdf_files = list(input_path.glob("*.pdf"))
+    try:
+        output_path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        logger.exception("Failed to create output directory: %s", output_path)
+        raise
+
+    try:
+        pdf_files = sorted(input_path.glob("*.pdf"))
+    except OSError:
+        logger.exception("Failed to list PDFs in %s", input_path)
+        raise
+
     total = len(pdf_files)
 
     if total == 0:
+        logger.warning("No PDF files found in %s", input_path)
         print(f"No PDF files found in {input_path}")
         return 0, 0, []
 
     if max_workers is None:
         max_workers = min(multiprocessing.cpu_count(), 8)
 
-    worker = _batch_worker_gs if method == "ghostscript" else _batch_worker_cs
-
+    logger.info("=== BATCH START === input=%s, output=%s, workers=%d, files=%d",
+                input_path, output_path, max_workers, total)
     print(f"Found {total} PDF files in {input_path}")
     print(f"Output: {output_path}")
-    print(f"Method: {method}, workers: {max_workers}\n")
+    print(f"Pipeline: analyze (spans+stream) -> clean (content_stream) -> clean (ghostscript)")
+    print(f"Workers: {max_workers}\n")
 
     success_count = 0
     failed_count = 0
     failed_files = []
+    aggregate_stats = {
+        "render_mode_3": 0,
+        "zero_font_size": 0,
+        "clipped": 0,
+        "white_text": 0,
+        "total_removed": 0,
+    }
+    start_time = time.time()
 
     tasks = [(pdf, output_path, timeout) for pdf in pdf_files]
 
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(worker, task): task[0] for task in tasks}
+    with ProcessPoolExecutor(max_workers=max_workers, initializer=_worker_init) as executor:
+        futures = {executor.submit(_batch_worker, task): task[0] for task in tasks}
 
         for future in as_completed(futures):
             pdf_file = futures[future]
             try:
-                pdf_path, success, error = future.result()
+                pdf_path, success, result = future.result()
                 if success:
                     success_count += 1
-                    print(f"[{success_count + failed_count}/{total}] OK  {Path(pdf_path).name}")
+                    cs_stats = result.get("cleaning", {}).get("content_stream")
+                    removed = cs_stats["total_removed"] if cs_stats else 0
+                    gs_ok = result.get("cleaning", {}).get("ghostscript", {}).get("success", False)
+                    logger.info("[%d/%d] OK %s (removed=%d, gs=%s)",
+                                success_count + failed_count, total, Path(pdf_path).name,
+                                removed, "ok" if gs_ok else "failed")
+                    print(f"[{success_count + failed_count}/{total}] OK  {Path(pdf_path).name} "
+                          f"(removed={removed}, gs={'ok' if gs_ok else 'failed'})")
+                    if cs_stats:
+                        for key in aggregate_stats:
+                            aggregate_stats[key] += cs_stats.get(key, 0)
                 else:
                     failed_count += 1
-                    failed_files.append((pdf_path, error))
-                    print(f"[{success_count + failed_count}/{total}] ERR {Path(pdf_path).name}: {error}")
+                    error_msg = result.get("error", "unknown error") if isinstance(result, dict) else str(result)
+                    failed_files.append((pdf_path, error_msg))
+                    logger.error("[%d/%d] ERR %s: %s", success_count + failed_count, total,
+                                 Path(pdf_path).name, error_msg)
+                    print(f"[{success_count + failed_count}/{total}] ERR {Path(pdf_path).name}: {error_msg}")
             except Exception as e:
                 failed_count += 1
                 failed_files.append((str(pdf_file), str(e)))
+                logger.exception("[%d/%d] WORKER CRASH %s", success_count + failed_count, total,
+                                 Path(pdf_file).name)
                 print(f"[{success_count + failed_count}/{total}] ERR {Path(pdf_file).name}: {e}")
 
-    print(f"\nCompleted: {success_count} success, {failed_count} failed")
+    elapsed = time.time() - start_time
+
+    print(f"\nCompleted: {success_count} success, {failed_count} failed, {elapsed:.1f}s elapsed")
+    logger.info("=== BATCH COMPLETE === %d success, %d failed, %.1fs elapsed (%.2fs/file avg)",
+                success_count, failed_count, elapsed, elapsed / total if total else 0)
+
+    if aggregate_stats["total_removed"] > 0:
+        logger.info("Aggregate removal stats: render_mode_3=%d, zero_font=%d, clipped=%d, white=%d, total_removed=%d",
+                     aggregate_stats["render_mode_3"], aggregate_stats["zero_font_size"],
+                     aggregate_stats["clipped"], aggregate_stats["white_text"],
+                     aggregate_stats["total_removed"])
+        print(f"\nAggregate: {aggregate_stats['total_removed']} invisible text operators removed "
+              f"(render_mode_3={aggregate_stats['render_mode_3']}, zero_font={aggregate_stats['zero_font_size']}, "
+              f"clipped={aggregate_stats['clipped']}, white={aggregate_stats['white_text']})")
 
     if failed_files:
+        logger.error("=== FAILED FILES (%d) ===", len(failed_files))
+        for path, error in failed_files:
+            logger.error("  %s: %s", Path(path).name, error)
         print(f"\nFailed files:")
         for path, error in failed_files[:10]:
             print(f"  {Path(path).name}: {error}")
         if len(failed_files) > 10:
-            print(f"  ... and {len(failed_files) - 10} more")
+            print(f"  ... and {len(failed_files) - 10} more (see {LOG_FILE} for full list)")
 
     return success_count, failed_count, failed_files
 
@@ -456,6 +667,9 @@ def _print_stream_results(results):
 
 
 def main():
+    _setup_logging()
+    logger.info("pdf_cleaner invoked: %s", sys.argv[1:])
+
     parser = argparse.ArgumentParser(
         description="PDF invisible text analysis and removal.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -485,15 +699,11 @@ def main():
     p_clean.add_argument("--timeout", type=int, default=120, help="Timeout in seconds (ghostscript only). Default: 120")
 
     # -- batch --
-    p_batch = sub.add_parser("batch", help="Clean all PDFs in a directory")
-    p_batch.add_argument("input_dir", help="Input directory containing PDFs")
-    p_batch.add_argument("output_dir", help="Output directory for cleaned PDFs")
-    p_batch.add_argument(
-        "--method", choices=["ghostscript", "content_stream"], default="ghostscript",
-        help="Cleaning method. Default: ghostscript",
-    )
+    p_batch = sub.add_parser("batch", help="Full pipeline: analyze + clean all PDFs in a directory")
+    p_batch.add_argument("input_dir", nargs="?", default=str(DEFAULT_INPUT_DIR), help=f"Input directory containing PDFs (default: {DEFAULT_INPUT_DIR})")
+    p_batch.add_argument("output_dir", nargs="?", default=str(DEFAULT_OUTPUT_DIR), help=f"Output directory for cleaned PDFs (default: {DEFAULT_OUTPUT_DIR})")
     p_batch.add_argument("--workers", type=int, default=None, help="Number of parallel workers. Default: min(cpu_count, 8)")
-    p_batch.add_argument("--timeout", type=int, default=120, help="Per-file timeout in seconds (ghostscript only). Default: 120")
+    p_batch.add_argument("--timeout", type=int, default=120, help="Per-file timeout in seconds (ghostscript). Default: 120")
 
     args = parser.parse_args()
 
@@ -501,44 +711,63 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    if args.command == "analyze":
-        print(f"Analyzing: {args.input}")
-        print(f"Method: {args.method}\n")
-        if args.method == "spans":
-            results = analyze_spans(args.input, max_pages=args.max_pages)
-            _print_span_results(results)
-        else:
-            results = analyze_content_stream(args.input)
-            _print_stream_results(results)
-
-    elif args.command == "clean":
-        print(f"Input:  {args.input}")
-        print(f"Method: {args.method}")
-        if args.method == "content_stream":
-            stats = clean_content_stream(args.input, args.output)
-            print(f"\nRemoval statistics:")
-            print(f"  Render mode 3: {stats['render_mode_3']}")
-            print(f"  Zero font size: {stats['zero_font_size']}")
-            print(f"  Clipped text: {stats['clipped']}")
-            print(f"  White text: {stats['white_text']}")
-            print(f"  Total removed: {stats['total_removed']}")
-        else:
-            success, error = clean_ghostscript(args.input, args.output, timeout=args.timeout)
-            if success:
-                output = args.output or f"{Path(args.input).stem}_cleaned.pdf"
-                print(f"Cleaned PDF saved to: {output}")
+    try:
+        if args.command == "analyze":
+            logger.info("Command: analyze, input=%s, method=%s", args.input, args.method)
+            print(f"Analyzing: {args.input}")
+            print(f"Method: {args.method}\n")
+            if args.method == "spans":
+                results = analyze_spans(args.input, max_pages=args.max_pages)
+                _print_span_results(results)
             else:
-                print(f"Error: {error}")
-                sys.exit(1)
+                results = analyze_content_stream(args.input)
+                _print_stream_results(results)
 
-    elif args.command == "batch":
-        batch_clean(
-            args.input_dir,
-            args.output_dir,
-            method=args.method,
-            max_workers=args.workers,
-            timeout=args.timeout,
-        )
+        elif args.command == "clean":
+            logger.info("Command: clean, input=%s, output=%s, method=%s", args.input, args.output, args.method)
+            print(f"Input:  {args.input}")
+            print(f"Method: {args.method}")
+            if args.method == "content_stream":
+                stats = clean_content_stream(args.input, args.output)
+                print(f"\nRemoval statistics:")
+                print(f"  Render mode 3: {stats['render_mode_3']}")
+                print(f"  Zero font size: {stats['zero_font_size']}")
+                print(f"  Clipped text: {stats['clipped']}")
+                print(f"  White text: {stats['white_text']}")
+                print(f"  Total removed: {stats['total_removed']}")
+            else:
+                success, error = clean_ghostscript(args.input, args.output, timeout=args.timeout)
+                if success:
+                    output = args.output or f"{Path(args.input).stem}_cleaned.pdf"
+                    print(f"Cleaned PDF saved to: {output}")
+                else:
+                    print(f"Error: {error}")
+                    sys.exit(1)
+
+        elif args.command == "batch":
+            logger.info("Command: batch, input_dir=%s, output_dir=%s, workers=%s",
+                        args.input_dir, args.output_dir, args.workers)
+            batch_clean(
+                args.input_dir,
+                args.output_dir,
+                max_workers=args.workers,
+                timeout=args.timeout,
+            )
+
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user")
+        print("\nInterrupted.")
+        sys.exit(130)
+    except FileNotFoundError as e:
+        logger.error("File not found: %s", e)
+        print(f"Error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.exception("Unhandled exception")
+        print(f"Fatal error: {e}")
+        sys.exit(1)
+
+    logger.info("pdf_cleaner finished")
 
 
 if __name__ == "__main__":
