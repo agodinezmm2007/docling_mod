@@ -72,7 +72,7 @@ def init_debug_pipeline():
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:8192"
 
     accelerator_options = AcceleratorOptions(
-        num_threads=22,
+        num_threads=8,
         device=AcceleratorDevice.CUDA
     )
 
@@ -85,7 +85,7 @@ def init_debug_pipeline():
     pipeline_options.accelerator_options = accelerator_options
     pipeline_options.layout_options = layout_options
     pipeline_options.do_ocr = False
-    pipeline_options.do_formula_enrichment = False
+    pipeline_options.do_formula_enrichment = True
     pipeline_options.do_table_structure = True
     pipeline_options.generate_page_images = False
     pipeline_options.generate_parsed_pages = True
@@ -320,8 +320,29 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
                     logging.info(f"[Row {idx}] Step 5b/6: Page metadata progress {done_count}/{num_pages}")
         logging.info(f"[Row {idx}] Step 5b/6: Page metadata build done in {time.time()-t0:.2f}s ({num_pages} pages, {POST_PROCESS_WORKERS} threads)")
 
-        # formula enrichment disabled
+        # step 5c: extract formulas with provenance
+        t0 = time.time()
         formula_list = []
+        from docling_core.types.doc import TextItem
+        from docling_core.types.doc.labels import DocItemLabel
+        for el in doc.texts:
+            if isinstance(el, TextItem) and el.label == DocItemLabel.FORMULA and el.text != "$$MALFORMED_FORMULA$$":
+                formula_data = {"latex": el.text}
+                if el.prov:
+                    formula_data["provenance"] = [
+                        {
+                            "page_no": prov.page_no,
+                            "bbox": {
+                                "l": prov.bbox.l,
+                                "t": prov.bbox.t,
+                                "r": prov.bbox.r,
+                                "b": prov.bbox.b
+                            } if prov.bbox else None
+                        }
+                        for prov in el.prov
+                    ]
+                formula_list.append(formula_data)
+        logging.info(f"[Row {idx}] Step 5c: Formula extraction done in {time.time()-t0:.2f}s ({len(formula_list)} formulas)")
 
         # step 6: process tables with provenance (threaded)
         t0 = time.time()
@@ -375,7 +396,7 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
             "Error": str(e)
         }
 
-def do_docling_extraction(df: pd.DataFrame, max_workers=14, output_dir=None) -> pd.DataFrame:
+def do_docling_extraction(df: pd.DataFrame, max_workers=10, output_dir=None) -> pd.DataFrame:
     """
     Processes each PDF row in parallel using the ProcessPoolExecutor.
     This version uses a single GPU for all workers.

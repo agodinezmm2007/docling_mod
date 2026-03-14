@@ -1,8 +1,10 @@
 # docling_extract_formulas_debug_mp_multi_provenance.py
 
 import os
+import time
 import multiprocessing
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from functools import partial
 import pandas as pd
 import logging
 import json
@@ -11,22 +13,29 @@ import re
 # import any other modules that are GPU related only after the workers are initialized
 
 # list of GPU IDs you want to use:
-GPU_IDS = [0, 3]
+GPU_IDS = [2, 4]
 
 # global variables for assigning GPUs
 assign_lock = multiprocessing.Lock()
 next_gpu = multiprocessing.Value('i', 0)
 
+# per-worker globals (initialized once in worker_initializer, reused across PDFs)
+_worker_converter = None
+_worker_tokenizer = None
+
 def worker_initializer():
     """
     This initializer is called once per worker process.
-    It uses a global counter to assign one GPU from GPU_IDS to each worker.
+    It uses a global counter to assign one GPU from GPU_IDS to each worker,
+    then loads the converter and tokenizer once for reuse.
     """
+    global _worker_converter, _worker_tokenizer
+
     with assign_lock, next_gpu.get_lock():
         # determine which GPU to assign based on a round-robin strategy
         gpu_index = next_gpu.value % len(GPU_IDS)
         next_gpu.value += 1
-    # iMPORTANT: Set CUDA_VISIBLE_DEVICES early!
+    # IMPORTANT: Set CUDA_VISIBLE_DEVICES early!
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU_IDS[gpu_index])
     # set other CUDA-related env vars as needed
@@ -48,6 +57,11 @@ def worker_initializer():
     root_logger.addHandler(fh)
 
     logging.info(f"Worker {multiprocessing.current_process().name} assigned GPU:{os.environ['CUDA_VISIBLE_DEVICES']}")
+
+    # load converter and tokenizer once per worker
+    _worker_converter = init_debug_pipeline()
+    _worker_tokenizer = init_tokenizer()
+    logging.info(f"Worker {multiprocessing.current_process().name} converter and tokenizer initialized")
 
 def init_tokenizer():
     try:
@@ -78,7 +92,7 @@ def init_debug_pipeline():
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:8192"
 
     accelerator_options = AcceleratorOptions(
-        num_threads=14,
+        num_threads=6,
         device=AcceleratorDevice.CUDA
     )
 
@@ -142,75 +156,78 @@ def is_reference_section(text):
 
     return False
 
-def extract_page_metadata(doc, page_no, count_tokens):
-    """
-    Extract content and metadata for a single page.
 
-    Returns dict with:
-        - page_no: int
-        - content: markdown string
-        - content_before_references: markdown before references section
-        - reference_content: markdown of references section (if any)
-        - has_references: bool - does this page contain a references section
-        - token_count: int
-        - items: list of items with provenance (page_no, bbox, label, is_reference)
+def _build_all_page_items(doc):
     """
-    from docling_core.types.doc.labels import DocItemLabel
+    Single-pass iteration over the entire document tree.
+    Buckets items by page_no, avoiding N separate full-tree scans.
+    Returns dict[int, list[dict]] mapping page_no -> list of item dicts.
+    """
+    page_items_map = {}
 
-    # extract items with provenance for this page
-    page_items = []
+    for item, level in doc.iterate_items(with_groups=False):
+        if not hasattr(item, 'prov') or not item.prov:
+            continue
+        for prov in item.prov:
+            page_no = prov.page_no
+            item_label = item.label.value if hasattr(item, 'label') else "unknown"
+            item_text = item.text if hasattr(item, 'text') else ""
+
+            item_data = {
+                "label": item_label,
+                "text": item_text,
+                "page_no": prov.page_no,
+                "bbox": {
+                    "l": prov.bbox.l,
+                    "t": prov.bbox.t,
+                    "r": prov.bbox.r,
+                    "b": prov.bbox.b
+                } if prov.bbox else None,
+                "charspan": list(prov.charspan) if prov.charspan else None,
+                "is_reference": False  # Set during per-page post-processing
+            }
+
+            if page_no not in page_items_map:
+                page_items_map[page_no] = []
+            page_items_map[page_no].append(item_data)
+            break  # Only take first prov per item
+
+    return page_items_map
+
+
+def _build_page_metadata(args):
+    """
+    Build page metadata from pre-bucketed items. No doc access needed.
+    Safe for ThreadPoolExecutor since it only operates on plain dicts/strings.
+    """
+    page_no, page_items, count_tokens = args
+
+    # detect references section (same logic as before, per-page)
     in_references = False
+    for item in page_items:
+        if item["label"] == "section_header":
+            text_lower = item["text"].lower().strip()
+            if any(term in text_lower for term in
+                   ['references', 'bibliography', 'works cited', 'literature cited']):
+                in_references = True
+        item["is_reference"] = in_references
 
-    for item, level in doc.iterate_items(page_no=page_no, with_groups=False):
-        if hasattr(item, 'prov') and item.prov:
-            for prov in item.prov:
-                if prov.page_no == page_no:
-                    item_label = item.label.value if hasattr(item, 'label') else "unknown"
-                    item_text = item.text if hasattr(item, 'text') else ""
-
-                    # check if this is the start of references section
-                    if item_label == "section_header":
-                        text_lower = item_text.lower().strip()
-                        if any(term in text_lower for term in ['references', 'bibliography', 'works cited', 'literature cited']):
-                            in_references = True
-
-                    item_data = {
-                        "label": item_label,
-                        "text": item_text,
-                        "page_no": prov.page_no,
-                        "bbox": {
-                            "l": prov.bbox.l,
-                            "t": prov.bbox.t,
-                            "r": prov.bbox.r,
-                            "b": prov.bbox.b
-                        } if prov.bbox else None,
-                        "charspan": list(prov.charspan) if prov.charspan else None,
-                        "is_reference": in_references
-                    }
-                    page_items.append(item_data)
-                    break  # Only take first prov for this page
-
-    # export full page content
-    page_md = doc.export_to_markdown(page_no=page_no)
+    # build page content from item texts
+    all_texts = [item["text"] for item in page_items if item["text"]]
+    page_md = "\n\n".join(all_texts)
 
     # clean artifacts
-    artifacts_to_remove = ["<!-- image -->", "$$MALFORMED_FORMULA$$"]
-    for artifact in artifacts_to_remove:
+    for artifact in ["<!-- image -->", "$$MALFORMED_FORMULA$$"]:
         page_md = page_md.replace(artifact, "")
 
     # separate content before and after references
-    content_before_refs = []
-    reference_content = []
-
-    for item in page_items:
-        if item["is_reference"]:
-            reference_content.append(item["text"])
-        else:
-            content_before_refs.append(item["text"])
+    content_before_refs = [item["text"] for item in page_items
+                           if not item["is_reference"] and item["text"]]
+    reference_content = [item["text"] for item in page_items
+                         if item["is_reference"] and item["text"]]
 
     content_before_refs_text = "\n\n".join(content_before_refs)
     reference_content_text = "\n\n".join(reference_content)
-
     has_references = len(reference_content) > 0
 
     # token counts
@@ -220,7 +237,7 @@ def extract_page_metadata(doc, page_no, count_tokens):
 
     return {
         "page_no": page_no,
-        "content": page_md,  # Full content
+        "content": page_md,
         "content_before_references": content_before_refs_text,
         "reference_content": reference_content_text,
         "has_references": has_references,
@@ -231,45 +248,104 @@ def extract_page_metadata(doc, page_no, count_tokens):
     }
 
 
+def _export_single_table(table, doc):
+    """Worker function for threaded table export."""
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="DataFrame columns are not unique")
+        table_data = {
+            "data": table.export_to_dataframe(doc=doc).to_dict(orient="records")
+        }
+        if table.prov:
+            table_data["provenance"] = [
+                {
+                    "page_no": prov.page_no,
+                    "bbox": {
+                        "l": prov.bbox.l,
+                        "t": prov.bbox.t,
+                        "r": prov.bbox.r,
+                        "b": prov.bbox.b
+                    } if prov.bbox else None
+                }
+                for prov in table.prov
+            ]
+        return table_data
+
+
+# number of threads for post-processing (page metadata, tables, etc.)
+POST_PROCESS_WORKERS = 12
+
+
 def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
     """
     In the child process, reinitialize the debug pipeline, convert the PDF,
-    parse formulas, and return the results with page-level provenance.
+    and return the results with page-level provenance.
+    Post-processing uses ThreadPoolExecutor for parallelism within a single PDF.
     """
-    count_tokens = init_tokenizer()
-    converter = init_debug_pipeline()
+    global _worker_converter, _worker_tokenizer
+    t_total_start = time.time()
+    logging.info(f"[Row {idx}] Starting extraction for {pdf_path}")
+
+    converter = _worker_converter
+    count_tokens = _worker_tokenizer
 
     try:
+        # step 3: convert document (GPU-accelerated)
+        t0 = time.time()
         conv_res = converter.convert(pdf_path)
         conv_res.document.name = f"pdf_row_{idx}"
         doc = conv_res.document
-
-        # extract document metadata
         num_pages = len(doc.pages)
         num_tables = len(doc.tables)
         num_pictures = len(doc.pictures)
+        logging.info(f"[Row {idx}] Step 1/5: Docling conversion done in {time.time()-t0:.2f}s — {num_pages} pages, {num_tables} tables, {num_pictures} pictures")
 
-        # full markdown export
+        # step 4: full markdown export
+        t0 = time.time()
         text_md = doc.export_to_markdown()
-
-        # clean artifacts from full text
         artifacts_to_remove = ["<!-- image -->", "$$MALFORMED_FORMULA$$"]
         for artifact in artifacts_to_remove:
             text_md = text_md.replace(artifact, "")
+        logging.info(f"[Row {idx}] Step 2/5: Full markdown export done in {time.time()-t0:.2f}s ({len(text_md)} chars)")
 
-        # extract page-level content with provenance
-        pages_content = []
-        for page_no in range(num_pages):
-            page_metadata = extract_page_metadata(doc, page_no, count_tokens)
-            pages_content.append(page_metadata)
+        # step 5a: single-pass iterate_items -> bucket by page (one tree traversal)
+        t0 = time.time()
+        page_items_map = _build_all_page_items(doc)
+        total_items = sum(len(v) for v in page_items_map.values())
+        logging.info(f"[Row {idx}] Step 3a/5: Single-pass item bucketing done in {time.time()-t0:.2f}s ({total_items} items across {len(page_items_map)} pages)")
 
-        # get formulas from the document
+        # step 5b: build page metadata from buckets (threaded, no doc access)
+        t0 = time.time()
+        pages_content = [None] * num_pages
+        args_list = [
+            (page_no, page_items_map.get(page_no, []), count_tokens)
+            for page_no in range(num_pages)
+        ]
+        with ThreadPoolExecutor(max_workers=POST_PROCESS_WORKERS) as executor:
+            futures = {
+                executor.submit(_build_page_metadata, args): args[0]
+                for args in args_list
+            }
+            done_count = 0
+            for future in as_completed(futures):
+                page_no = futures[future]
+                try:
+                    pages_content[page_no] = future.result()
+                except Exception as e:
+                    logging.error(f"[Row {idx}] Page {page_no} metadata build failed: {e}", exc_info=True)
+                    pages_content[page_no] = {"page_no": page_no, "content": "", "error": str(e)}
+                done_count += 1
+                if done_count % 200 == 0 or done_count == num_pages:
+                    logging.info(f"[Row {idx}] Step 3b/5: Page metadata progress {done_count}/{num_pages}")
+        logging.info(f"[Row {idx}] Step 3b/5: Page metadata build done in {time.time()-t0:.2f}s ({num_pages} pages, {POST_PROCESS_WORKERS} threads)")
+
+        # step 6: extract formulas with provenance
+        t0 = time.time()
         formula_list = []
         from docling_core.types.doc import TextItem
         from docling_core.types.doc.labels import DocItemLabel
         for el in doc.texts:
             if isinstance(el, TextItem) and el.label == DocItemLabel.FORMULA and el.text != "$$MALFORMED_FORMULA$$":
-                # add provenance to formula
                 formula_data = {"latex": el.text}
                 if el.prov:
                     formula_data["provenance"] = [
@@ -285,33 +361,33 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
                         for prov in el.prov
                     ]
                 formula_list.append(formula_data)
+        logging.info(f"[Row {idx}] Step 4/5: Formula extraction done in {time.time()-t0:.2f}s ({len(formula_list)} formulas)")
 
-        # process tables with provenance
-        import warnings
+        # step 7: process tables with provenance (threaded)
+        t0 = time.time()
         all_tables_json = []
-        for table in doc.tables:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", message="DataFrame columns are not unique")
-                table_data = {
-                    "data": table.export_to_dataframe(doc=doc).to_dict(orient="records")
+        if num_tables > 0:
+            table_export_fn = partial(_export_single_table, doc=doc)
+            with ThreadPoolExecutor(max_workers=min(POST_PROCESS_WORKERS, num_tables)) as executor:
+                futures = {
+                    executor.submit(table_export_fn, table): t_idx
+                    for t_idx, table in enumerate(doc.tables)
                 }
-                # add table provenance
-                if table.prov:
-                    table_data["provenance"] = [
-                        {
-                            "page_no": prov.page_no,
-                            "bbox": {
-                                "l": prov.bbox.l,
-                                "t": prov.bbox.t,
-                                "r": prov.bbox.r,
-                                "b": prov.bbox.b
-                            } if prov.bbox else None
-                        }
-                        for prov in table.prov
-                    ]
-                all_tables_json.append(table_data)
+                table_results = [None] * num_tables
+                for future in as_completed(futures):
+                    t_idx = futures[future]
+                    try:
+                        table_results[t_idx] = future.result()
+                    except Exception as e:
+                        logging.error(f"[Row {idx}] Table {t_idx} export failed: {e}", exc_info=True)
+                        table_results[t_idx] = {"data": [], "error": str(e)}
+                all_tables_json = table_results
+        logging.info(f"[Row {idx}] Step 5/5: Table export done in {time.time()-t0:.2f}s ({num_tables} tables)")
 
         token_count = count_tokens(text_md)
+
+        total_elapsed = time.time() - t_total_start
+        logging.info(f"[Row {idx}] Extraction complete — total {total_elapsed:.2f}s")
 
         return {
             "FullText": text_md,
@@ -326,7 +402,7 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
         }
 
     except Exception as e:
-        logging.error(f"Docling extraction failed for {pdf_path}: {e}", exc_info=True)
+        logging.error(f"[Row {idx}] Docling extraction failed for {pdf_path}: {e}", exc_info=True)
         return {
             "FullText": "ANALYSIS_ERROR",
             "PagesJson": "ANALYSIS_ERROR",
@@ -339,13 +415,13 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
             "Error": str(e)
         }
 
-def do_docling_extraction(df: pd.DataFrame, max_workers=14, output_dir=None) -> pd.DataFrame:
+def do_docling_extraction(df: pd.DataFrame, max_workers=10, output_dir=None) -> pd.DataFrame:
     """
     Processes each PDF row in parallel using the ProcessPoolExecutor.
     This version uses the worker_initializer to distribute GPUs.
     """
     logging.info("Starting multiprocessing docling extraction on %d records using max_workers=%d", len(df), max_workers)
-    print("[Step 9/11] Extracting text/tables/formulas via Docling (Multiprocessing Dual GPU Debug with Provenance)...")
+    print("[Step 9/11] Extracting text/tables/formulas via Docling (Multiprocessing Multi-GPU Debug with Provenance)...")
     for col in ["FullText", "PagesJson", "TablesJson", "EquationsJson", "TokenCount", "NumPages", "NumTables", "NumPictures", "Error"]:
         if col not in df.columns:
             df[col] = None if col == "Error" else (0 if col.startswith("Num") else "")
@@ -405,26 +481,29 @@ def do_docling_extraction(df: pd.DataFrame, max_workers=14, output_dir=None) -> 
     return df
 
 
-# if __name__ == "__main__":
-#     import sys
-#     logging.basicConfig(
-#         level=logging.DEBUG,
-#         format="%(asctime)s - %(levelname)s - %(message)s"
-#     )
-#
-#     TEST_PATH = "/mnt/c/Users/WSTATION/Desktop/NEW_ETL/docling_test_30.feather"
-#     OUTPUT_PATH = "/mnt/c/Users/WSTATION/Desktop/NEW_ETL/enriched_output_debug_mproc_provenance.feather"
-#
-#     if len(sys.argv) > 1:
-#         TEST_PATH = sys.argv[1]
-#     if len(sys.argv) > 2:
-#         OUTPUT_PATH = sys.argv[2]
-#
-#     df = pd.read_feather(TEST_PATH)
-#     logging.info(f"Loaded {len(df)} rows from {TEST_PATH}")
-#
-#     # Set max_workers to 2 if you have 2 dedicated GPUs
-#     df = do_docling_extraction(df, max_workers=2)
-#
-#     df.to_feather(OUTPUT_PATH)
-#     logging.info(f"Saved results to {OUTPUT_PATH}")
+if __name__ == "__main__":
+    import sys
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+    INPUT_PATH = "/mnt/c/Users/WSTATION/Desktop/docling_mods/scripts/sample_pdfs/pdf_df.feather"
+    OUTPUT_PATH = "/mnt/c/Users/WSTATION/Desktop/docling_mods/scripts/sample_pdfs/pdf_df_output.feather"
+
+    if len(sys.argv) > 1:
+        INPUT_PATH = sys.argv[1]
+    if len(sys.argv) > 2:
+        OUTPUT_PATH = sys.argv[2]
+
+    df = pd.read_feather(INPUT_PATH)
+    logging.info(f"Loaded {len(df)} rows from {INPUT_PATH}")
+    print(f"Loaded {len(df)} rows from {INPUT_PATH}")
+    print(df[["PDFPath", "FileName"]].to_string())
+
+    df = do_docling_extraction(df, max_workers=len(GPU_IDS))
+
+    df.to_feather(OUTPUT_PATH)
+    logging.info(f"Saved results to {OUTPUT_PATH}")
+    print(f"Saved results to {OUTPUT_PATH}")
