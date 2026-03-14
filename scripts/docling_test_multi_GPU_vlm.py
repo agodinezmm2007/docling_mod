@@ -1,15 +1,26 @@
-# docling_extract_formulas_mp_multi.py (Multiprocessing Version with Dual GPU)
 
+"""
+Multiprocessing Multi-GPU Docling VLM extraction with worker initializer
+
+This version uses Vision-Language Models (VLM) for end-to-end PDF conversion:
+- Uses VlmPipeline instead of StandardPdfPipeline
+- Converts entire PDF pages to markdown using Granite Vision (2B) model
+- VLM directly processes page images without layout detection/OCR steps
+- Better for complex layouts, figures, and context-aware extraction
+- Slower but more accurate than standard pipeline
+- Distributes work across multiple GPUs for parallel processing
+"""
+import logging
 import os
+import json
 import multiprocessing
-# multiprocessing.set_start_method("spawn", force=True)
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
-import logging
-import json
-import tiktoken
 
-# list of GPU IDs you want to use:
+# ensure fresh spawn start to avoid inheriting any CUDA state
+# multiprocessing.set_start_method("spawn", force=True)
+
+# list of GPU IDs you want to use (multi-GPU)
 GPU_IDS = [1, 2]
 
 # global variables for assigning GPUs
@@ -25,11 +36,13 @@ def worker_initializer():
         # determine which GPU to assign based on a round-robin strategy
         gpu_index = next_gpu.value % len(GPU_IDS)
         next_gpu.value += 1
-    # IMPORTANT: set CUDA_VISIBLE_DEVICES early!
+
+    # important: Set CUDA_VISIBLE_DEVICES early!
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU_IDS[gpu_index])
 
-    # set other CUDA-related env vars as need
+    # set other CUDA-related env vars as needed
+    # VLM may need more memory than standard pipeline
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:32768"
 
     # configure logging for worker process
@@ -49,66 +62,68 @@ def worker_initializer():
 
     logging.info(f"Worker {multiprocessing.current_process().name} assigned GPU:{os.environ['CUDA_VISIBLE_DEVICES']}")
 
-def init_tokenizer():
-    try:
-        tokenizer = tiktoken.get_encoding("gpt2")
-        return lambda text: len(tokenizer.encode(text)) if text else 0
-    except ImportError:
-        return lambda text: 0
 
 def init_converter():
     """
-    Called once in each worker process to set environment variables and
-    create a DocumentConverter with the debug pipeline.
+    Called once in each worker process to create a VLM pipeline.
     Note: Since we already set CUDA_VISIBLE_DEVICES in the initializer,
     we do not need to reset it here.
     """
-    from docling.document_converter import DocumentConverter, PdfFormatOption
-    from docling.datamodel.pipeline_options import (
-        AcceleratorOptions,
-        AcceleratorDevice,
-        PdfPipelineOptions,
-        LayoutOptions,
-        DOCLING_LAYOUT_HERON_101  # 76.7M parameter model
-    )
-    from docling.datamodel.base_models import InputFormat
+    from docling.pipeline.vlm_pipeline import VlmPipeline
+    from docling.datamodel.pipeline_options import VlmPipelineOptions, AcceleratorOptions, AcceleratorDevice
+    from docling.datamodel.vlm_model_specs import GRANITE_VISION_TRANSFORMERS
 
     accelerator_options = AcceleratorOptions(
-        num_threads=8,
+        num_threads=4,
         device=AcceleratorDevice.CUDA
     )
 
-    # configure layout model - Using HERON_101 (76.7M params)
-    layout_options = LayoutOptions(
-        model_spec=DOCLING_LAYOUT_HERON_101
+    # use Granite Vision VLM model for full page conversion
+    pipeline_options = VlmPipelineOptions(
+        accelerator_options=accelerator_options,
+        vlm_options=GRANITE_VISION_TRANSFORMERS,
+        generate_page_images=True,  # Required for VLM
+        force_backend_text=False,   # False = use VLM-generated text
     )
 
-    pipeline_options = PdfPipelineOptions()
-    pipeline_options.accelerator_options = accelerator_options
-    pipeline_options.layout_options = layout_options
-    pipeline_options.do_ocr = False
-    pipeline_options.do_formula_enrichment = True
-    pipeline_options.do_table_structure = True
-    converter = DocumentConverter(
-        format_options={
-            InputFormat.PDF: PdfFormatOption(
-                pipeline_options=pipeline_options
-            )
-        }
-    )
-    return converter
+    return VlmPipeline(pipeline_options=pipeline_options)
+
+
+def init_tokenizer():
+    """Initialize tokenizer for counting tokens"""
+    try:
+        import tiktoken
+        tok = tiktoken.get_encoding("gpt2")
+        return lambda text: len(tok.encode(text)) if text else 0
+    except Exception:
+        return lambda text: 0
 
 
 def extract_pdf_with_docling(pdf_path):
     """
-    In the child process, reinitialize the converter pipeline, convert the PDF,
+    In the child process, reinitialize the VLM pipeline, convert the PDF,
     parse formulas, and return the results.
     """
-    converter = init_converter()
+    pipeline = init_converter()
     count_tokens = init_tokenizer()
 
+    from pathlib import Path
+    from docling.datamodel.document import InputDocument
+    from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+    from docling.datamodel.base_models import InputFormat
+    from docling_core.types.doc import TextItem
+    from docling_core.types.doc.labels import DocItemLabel
+
     try:
-        conv_res = converter.convert(pdf_path)
+        # create input document for VLM pipeline
+        input_doc = InputDocument(
+            path_or_stream=Path(pdf_path),
+            format=InputFormat.PDF,
+            backend=PyPdfiumDocumentBackend
+        )
+
+        # execute VLM pipeline
+        conv_res = pipeline.execute(input_doc, raises_on_error=False)
         doc = conv_res.document
 
         # extract document metadata
@@ -116,21 +131,20 @@ def extract_pdf_with_docling(pdf_path):
         num_tables = len(doc.tables)
         num_pictures = len(doc.pictures)
 
+        # export to markdown
         text_md = doc.export_to_markdown()
 
-        # --- NEW CLEANING STEP ---
+        # clean artifacts
         artifacts_to_remove = ["<!-- image -->", "$$MALFORMED_FORMULA$$"]
         for artifact in artifacts_to_remove:
             text_md = text_md.replace(artifact, "")
-        # -------------------------
 
-        # get formulas from the document
-        formula_list = []
-        from docling_core.types.doc import TextItem
-        from docling_core.types.doc.labels import DocItemLabel
-        for el in doc.texts:
-            if isinstance(el, TextItem) and el.label == DocItemLabel.FORMULA and el.text != "$$MALFORMED_FORMULA$$":
-                formula_list.append({"latex": el.text})
+        # extract formulas
+        formula_list = [
+            {"latex": el.text}
+            for el in doc.texts
+            if isinstance(el, TextItem) and el.label == DocItemLabel.FORMULA and el.text != "$$MALFORMED_FORMULA$$"
+        ]
 
         # process tables
         import warnings
@@ -154,7 +168,7 @@ def extract_pdf_with_docling(pdf_path):
         }
 
     except Exception as e:
-        logging.error(f"Docling extraction failed for {pdf_path}: {e}", exc_info=True)
+        logging.error(f"Docling VLM extraction failed for {pdf_path}: {e}", exc_info=True)
         return {
             "FullText": "ANALYSIS_ERROR",
             "TablesJson": "ANALYSIS_ERROR",
@@ -166,14 +180,16 @@ def extract_pdf_with_docling(pdf_path):
             "Error": str(e)
         }
 
-def do_docling_extraction(df: pd.DataFrame, max_workers=14) -> pd.DataFrame:
+
+def do_docling_extraction(df: pd.DataFrame, max_workers: int = 8) -> pd.DataFrame:
     """
     Processes each PDF row in parallel using the ProcessPoolExecutor.
-    This version uses the worker_initializer to distribute GPUs.
+    This version uses the worker_initializer to distribute GPUs across workers.
     """
+    logging.info("Starting multiprocessing VLM docling extraction on %d records using max_workers=%d", len(df), max_workers)
+    print("[Step 9/11] Extracting text/tables/formulas via Docling VLM (Multiprocessing Multi-GPU)...")
 
-    logging.info("Starting multiprocessing docling extraction on %d records using max_workers=%d", len(df), max_workers)
-    print("[Step 9/11] Extracting text/tables/formulas via Docling (Multiprocessing Dual GPU)...")
+    # ensure output columns exist
     for col in ["FullText", "TablesJson", "EquationsJson", "TokenCount", "NumPages", "NumTables", "NumPictures", "Error"]:
         if col not in df.columns:
             df[col] = None if col == "Error" else (0 if col.startswith("Num") else "")
@@ -192,6 +208,7 @@ def do_docling_extraction(df: pd.DataFrame, max_workers=14) -> pd.DataFrame:
                 df.at[idx, "Error"] = "PDF_NOT_FOUND"
                 continue
             logging.info(f"[MainProc] Submitting row {idx}, pdf={pdf_path}")
+            print(f" -> Submitted PDF row {idx}, file: {os.path.basename(pdf_path)}")
             future = executor.submit(extract_pdf_with_docling, pdf_path)
             futures[future] = idx
 
@@ -213,7 +230,7 @@ def do_docling_extraction(df: pd.DataFrame, max_workers=14) -> pd.DataFrame:
                     print(f"[!] Extraction error row {irow}: {result['Error']}")
                 else:
                     logging.info(f"Extraction successful row {irow}, pages={result['NumPages']}, tables={result['NumTables']}, tokens={result['TokenCount']}")
-                    print(f"[OK] Extraction successful row {irow}: {result['NumPages']} pages, {result['NumTables']} tables")
+                    print(f"[OK] Extraction successful row {irow}: {result['NumPages']} pages, {result['NumTables']} tables, {result['TokenCount']} tokens")
 
             except Exception as e:
                 logging.exception(f"Multiprocessing extraction exception row {irow}: {e}")
@@ -226,5 +243,5 @@ def do_docling_extraction(df: pd.DataFrame, max_workers=14) -> pd.DataFrame:
                 df.at[irow, "NumPictures"] = 0
                 df.at[irow, "Error"] = str(e)
 
-    logging.info("Multiprocessing Docling extraction complete.")
+    logging.info("Multiprocessing VLM Docling extraction complete.")
     return df
