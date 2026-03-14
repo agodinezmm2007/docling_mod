@@ -1,0 +1,31 @@
+docling_debug/
+data/figures/
+TEST/
+/PICTURE_PROCESSING_INVESTIGATION.md
+
+# Logs
+docling_test_logs/
+scripts/logs/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Model cache
+model_cache/
+
+# Misc files
+all_packages_big_pc.txt
+docling_core.txt
+docling_ibm.txt
+docling_parse.txt
+MODIFIED FILES.txt
+small_pc_packages.text
+TABLE.png
+
+# Script data directories
+scripts/output/
+scripts/sample_pdfs/
+scripts/sample_pdfs_cleaned/
+scripts/smaple_pdfs/
+scripts/docling.txt
