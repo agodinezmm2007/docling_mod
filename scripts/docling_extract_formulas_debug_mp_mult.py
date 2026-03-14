@@ -9,10 +9,10 @@ import json
 import tiktoken
 # import any other modules that are GPU related only after the workers are initialized
 
-# List of GPU IDs you want to use:
+# list of GPU IDs you want to use:
 GPU_IDS = [1, 2]
 
-# Global variables for assigning GPUs
+# global variables for assigning GPUs
 assign_lock = multiprocessing.Lock()
 next_gpu = multiprocessing.Value('i', 0)
 
@@ -22,16 +22,31 @@ def worker_initializer():
     It uses a global counter to assign one GPU from GPU_IDS to each worker.
     """
     with assign_lock, next_gpu.get_lock():
-        # Determine which GPU to assign based on a round-robin strategy
+        # determine which GPU to assign based on a round-robin strategy
         gpu_index = next_gpu.value % len(GPU_IDS)
         next_gpu.value += 1
-    # IMPORTANT: Set CUDA_VISIBLE_DEVICES early!
+    # IMPORTANT: set CUDA_VISIBLE_DEVICES early!
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU_IDS[gpu_index])
     # set other CUDA-related env vars as needed
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:32768"
-    # Log to see which worker got which GPU
-    logging.info(f"Worker {multiprocessing.current_process().name} assigned GPU: {os.environ['CUDA_VISIBLE_DEVICES']}")
+
+    # configure logging for worker process
+    import logging
+    LOG_FILE = "/mnt/c/Users/WSTATION/Desktop/docling_mods/scripts/logs/docling_testing.log"
+
+    # clear any existing handlers
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.setLevel(logging.DEBUG)
+
+    # add file handler
+    fh = logging.FileHandler(LOG_FILE, mode='a')
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    root_logger.addHandler(fh)
+
+    logging.info(f"Worker {multiprocessing.current_process().name} assigned GPU:{os.environ['CUDA_VISIBLE_DEVICES']}")
 
 def init_tokenizer():
     try:
@@ -48,7 +63,13 @@ def init_debug_pipeline():
     we do not need to reset it here.
     """
     from docling.document_converter import DocumentConverter, PdfFormatOption
-    from docling.datamodel.pipeline_options import AcceleratorOptions, AcceleratorDevice, PdfPipelineOptions
+    from docling.datamodel.pipeline_options import (
+        AcceleratorOptions,
+        AcceleratorDevice,
+        PdfPipelineOptions,
+        LayoutOptions,
+        DOCLING_LAYOUT_HERON_101  # 76.7M parameter model
+    )
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.settings import settings
 
@@ -56,22 +77,29 @@ def init_debug_pipeline():
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1024"
 
     accelerator_options = AcceleratorOptions(
-        num_threads=6,
+        num_threads=4,
         device=AcceleratorDevice.CUDA
+    )
+
+    # configure layout model
+    layout_options = LayoutOptions(
+        model_spec=DOCLING_LAYOUT_HERON_101
     )
 
     pipeline_options = PdfPipelineOptions()
     pipeline_options.accelerator_options = accelerator_options
+    pipeline_options.layout_options = layout_options
     pipeline_options.do_ocr = False
     pipeline_options.do_formula_enrichment = True
+    pipeline_options.do_table_structure = True
     pipeline_options.generate_page_images = True
     pipeline_options.generate_parsed_pages = True
     pipeline_options.images_scale = 2.0
 
-    # Enable debug visualization for bounding boxes
+    # enable debug visualization for bounding boxes
     settings.debug.visualize_raw_layout = True
     settings.debug.visualize_layout = True
-    settings.debug.debug_output_path = "/mnt/c/Users/WSTATION/Desktop/NEW_ETL/docling_debug"
+    settings.debug.debug_output_path = "/mnt/c/Users/WSTATION/Desktop/docling_mods/docling_debug"
 
     converter = DocumentConverter(
         format_options={
@@ -95,6 +123,11 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
         conv_res.document.name = f"pdf_row_{idx}"
         doc = conv_res.document
 
+        # extract document metadata
+        num_pages = len(doc.pages)
+        num_tables = len(doc.tables)
+        num_pictures = len(doc.pictures)
+
         text_md = doc.export_to_markdown()
 
         # --- NEW CLEANING STEP ---
@@ -112,11 +145,12 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
                 formula_list.append({"latex": el.text})
 
         # process tables
+        import warnings
         all_tables_json = []
         for table in doc.tables:
-            df = table.export_to_dataframe()
-            table_records = df.to_dict(orient="records")
-            all_tables_json.append(table_records)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="DataFrame columns are not unique")
+                all_tables_json.append(table.export_to_dataframe(doc=doc).to_dict(orient="records"))
 
         token_count = count_tokens(text_md)
 
@@ -125,31 +159,38 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
             "TablesJson": json.dumps(all_tables_json, ensure_ascii=False),
             "EquationsJson": json.dumps(formula_list, ensure_ascii=False),
             "TokenCount": token_count,
+            "NumPages": num_pages,
+            "NumTables": num_tables,
+            "NumPictures": num_pictures,
             "Error": None
         }
 
     except Exception as e:
-        logging.error(f"[Worker] Error processing row {idx}, pdf={pdf_path}: {e}", exc_info=True)
+        logging.error(f"Docling extraction failed for {pdf_path}: {e}", exc_info=True)
         return {
             "FullText": "ANALYSIS_ERROR",
             "TablesJson": "ANALYSIS_ERROR",
             "EquationsJson": "ANALYSIS_ERROR",
             "TokenCount": 0,
+            "NumPages": 0,
+            "NumTables": 0,
+            "NumPictures": 0,
             "Error": str(e)
         }
 
-def do_docling_extraction(df: pd.DataFrame, max_workers=5, output_dir=None) -> pd.DataFrame:
+def do_docling_extraction(df: pd.DataFrame, max_workers=8, output_dir=None) -> pd.DataFrame:
     """
     Processes each PDF row in parallel using the ProcessPoolExecutor.
     This version uses the worker_initializer to distribute GPUs.
     """
     logging.info("Starting multiprocessing docling extraction on %d records using max_workers=%d", len(df), max_workers)
-    for col in ["FullText", "TablesJson", "EquationsJson", "TokenCount", "Error"]:
+    print("[Step 9/11] Extracting text/tables/formulas via Docling (Multiprocessing Dual GPU Debug)...")
+    for col in ["FullText", "TablesJson", "EquationsJson", "TokenCount", "NumPages", "NumTables", "NumPictures", "Error"]:
         if col not in df.columns:
-            df[col] = "" if col != "Error" else None
+            df[col] = None if col == "Error" else (0 if col.startswith("Num") else "")
 
     futures = {}
-    # The initializer ensures each worker gets its GPU assigned
+    # the initializer ensures each worker gets its GPU assigned
     with ProcessPoolExecutor(max_workers=max_workers, initializer=worker_initializer) as executor:
         for idx, row in df.iterrows():
             pdf_path = row.get("PDFPath", "")
@@ -173,21 +214,30 @@ def do_docling_extraction(df: pd.DataFrame, max_workers=5, output_dir=None) -> p
                 df.at[irow, "TablesJson"] = result["TablesJson"]
                 df.at[irow, "EquationsJson"] = result["EquationsJson"]
                 df.at[irow, "TokenCount"] = result["TokenCount"]
+                df.at[irow, "NumPages"] = result["NumPages"]
+                df.at[irow, "NumTables"] = result["NumTables"]
+                df.at[irow, "NumPictures"] = result["NumPictures"]
                 df.at[irow, "Error"] = result["Error"]
 
                 if result["Error"]:
-                    logging.error(f"[MainProc] Row {irow} extraction error: {result['Error']}")
+                    logging.error(f"[!] Extraction error row {irow}: {result['Error']}")
+                    print(f"[!] Extraction error row {irow}: {result['Error']}")
                 else:
-                    logging.info(f"[MainProc] Row {irow} processed, tokens={result['TokenCount']}")
+                    logging.info(f"Extraction successful row {irow}, pages={result['NumPages']}, tables={result['NumTables']}, tokens={result['TokenCount']}")
+                    print(f"[OK] Extraction successful row {irow}: {result['NumPages']} pages, {result['NumTables']} tables")
+
             except Exception as e:
-                logging.exception(f"[MainProc] Future exception for row {irow}: {e}")
+                logging.exception(f"Multiprocessing extraction exception row {irow}: {e}")
                 df.at[irow, "FullText"] = "ANALYSIS_ERROR"
                 df.at[irow, "TablesJson"] = "ANALYSIS_ERROR"
                 df.at[irow, "EquationsJson"] = "ANALYSIS_ERROR"
                 df.at[irow, "TokenCount"] = 0
+                df.at[irow, "NumPages"] = 0
+                df.at[irow, "NumTables"] = 0
+                df.at[irow, "NumPictures"] = 0
                 df.at[irow, "Error"] = str(e)
 
-    logging.info("Docling extraction complete.")
+    logging.info("Multiprocessing Docling extraction complete.")
     return df
 
 
@@ -209,7 +259,7 @@ def do_docling_extraction(df: pd.DataFrame, max_workers=5, output_dir=None) -> p
 #     df = pd.read_feather(TEST_PATH)
 #     logging.info(f"Loaded {len(df)} rows from {TEST_PATH}")
 
-#     # Set max_workers to 2 if you have 2 dedicated GPUs
+#     # set max_workers to 2 if you have 2 dedicated GPUs
 #     df = do_docling_extraction(df, max_workers=2)
 
 #     df.to_feather(OUTPUT_PATH)

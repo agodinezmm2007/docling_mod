@@ -1,5 +1,5 @@
 # docling_extract_formulas_debug.py
-# Multiprocessing Debug Version with Worker Initializer and GPU Pinning
+# multiprocessing Debug Version with Worker Initializer and GPU Pinning
 import logging
 import os
 import json
@@ -7,12 +7,12 @@ import multiprocessing
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
 
-# Ensure spawn start method to avoid inheriting CUDA context
+# ensure spawn start method to avoid inheriting CUDA context
 multiprocessing.set_start_method("spawn", force=True)
 
-# List of GPU IDs you want to use for debug (single-GPU)
+# list of GPU IDs you want to use for debug (single-GPU)
 GPU_IDS = ["0"]
-# Globals for round-robin GPU assignment
+# globals for round-robin GPU assignment
 assign_lock = multiprocessing.Lock()
 next_gpu = multiprocessing.Value('i', 0)
 
@@ -42,13 +42,13 @@ def init_converter(output_dir=None):
     from docling.datamodel.pipeline_options import AcceleratorOptions, AcceleratorDevice, PdfPipelineOptions
     from docling.datamodel.settings import settings
 
-    # Configure debug visuals
+    # configure debug visuals
     settings.debug.visualize_raw_layout = True
     settings.debug.visualize_layout     = True
     if output_dir:
         settings.debug.debug_output_path = output_dir
 
-    # Set up GPU accelerator
+    # set up GPU accelerator
     accelerator_options = AcceleratorOptions(
         num_threads=4,
         device=AcceleratorDevice.CUDA
@@ -101,23 +101,23 @@ def extract_pdf_with_docling(args):
         conv_res = converter.convert(pdf_path)
         doc = conv_res.document
 
-        # Markdown extraction
+        # markdown extraction
         text_md = doc.export_to_markdown()
 
-        # Extract formulas
+        # extract formulas
         formula_list = [
             {"latex": el.text}
             for el in doc.texts
             if isinstance(el, TextItem) and el.label == DocItemLabel.FORMULA
         ]
 
-        # Extract tables
+        # extract tables
         all_tables_json = [
             table.export_to_dataframe().to_dict(orient='records')
             for table in doc.tables
         ]
 
-        # Trigger debug page exports
+        # trigger debug page exports
         for (content_text, content_md, content_dt, page_cells, page_segments, page) in generate_multimodal_pages(conv_res):
             # visuals saved via settings.debug.debug_output_path
             continue
@@ -152,12 +152,12 @@ def do_docling_extraction(df, output_dir=None, max_workers=2):
     """
     logging.info(f"Starting debug multiprocessing for {len(df)} records using {max_workers} worker(s)")
 
-    # Ensure columns exist
+    # ensure columns exist
     for col in ("FullText","TablesJson","EquationsJson","TokenCount","Error"):
         if col not in df.columns:
             df[col] = None if col == "Error" else ""
 
-    # Prepare args list
+    # prepare args list
     args_list = []
     for idx, row in df.iterrows():
         pdf_path = row.get("PDFPath", "")
@@ -166,7 +166,7 @@ def do_docling_extraction(df, output_dir=None, max_workers=2):
         else:
             df.at[idx, "Error"] = "PDF_NOT_FOUND"
 
-    # Run in parallel
+    # run in parallel
     with ProcessPoolExecutor(max_workers=max_workers, initializer=worker_initializer) as executor:
         futures = {executor.submit(extract_pdf_with_docling, args): args[1] for args in args_list}
         for future in as_completed(futures):
@@ -181,7 +181,7 @@ def do_docling_extraction(df, output_dir=None, max_workers=2):
     return df
 
 # ----------------------------------------
-# If run directly for testing:
+# if run directly for testing:
 # ----------------------------------------
 # if __name__ == "__main__":
 #     import pandas as pd

@@ -10,10 +10,10 @@ import tiktoken
 import re
 # import any other modules that are GPU related only after the workers are initialized
 
-# List of GPU IDs you want to use:
+# list of GPU IDs you want to use:
 GPU_IDS = [0, 3]
 
-# Global variables for assigning GPUs
+# global variables for assigning GPUs
 assign_lock = multiprocessing.Lock()
 next_gpu = multiprocessing.Value('i', 0)
 
@@ -23,25 +23,25 @@ def worker_initializer():
     It uses a global counter to assign one GPU from GPU_IDS to each worker.
     """
     with assign_lock, next_gpu.get_lock():
-        # Determine which GPU to assign based on a round-robin strategy
+        # determine which GPU to assign based on a round-robin strategy
         gpu_index = next_gpu.value % len(GPU_IDS)
         next_gpu.value += 1
-    # IMPORTANT: Set CUDA_VISIBLE_DEVICES early!
+    # iMPORTANT: Set CUDA_VISIBLE_DEVICES early!
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU_IDS[gpu_index])
     # set other CUDA-related env vars as needed
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:8192"
 
-    # Configure logging for worker process
+    # configure logging for worker process
     import logging
     LOG_FILE = "/mnt/c/Users/WSTATION/Desktop/docling_mods/scripts/logs/docling_testing.log"
 
-    # Clear any existing handlers
+    # clear any existing handlers
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
     root_logger.setLevel(logging.DEBUG)
 
-    # Add file handler
+    # add file handler
     fh = logging.FileHandler(LOG_FILE, mode='a')
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
@@ -82,7 +82,7 @@ def init_debug_pipeline():
         device=AcceleratorDevice.CUDA
     )
 
-    # Configure layout model
+    # configure layout model
     layout_options = LayoutOptions(
         model_spec=DOCLING_LAYOUT_HERON_101
     )
@@ -97,7 +97,7 @@ def init_debug_pipeline():
     pipeline_options.generate_parsed_pages = True
     pipeline_options.images_scale = 2.0
 
-    # Enable debug visualization for bounding boxes
+    # enable debug visualization for bounding boxes
     settings.debug.visualize_raw_layout = True
     settings.debug.visualize_layout = True
     settings.debug.debug_output_path = "/mnt/c/Users/WSTATION/Desktop/docling_mods/docling_debug"
@@ -120,7 +120,7 @@ def is_reference_section(text):
 
     text_lower = text.lower()
 
-    # Check for reference section headers
+    # check for reference section headers
     header_patterns = [
         r'^\s*references?\s*$',
         r'^\s*bibliography\s*$',
@@ -132,11 +132,11 @@ def is_reference_section(text):
         if re.search(pattern, text_lower, re.MULTILINE):
             return True
 
-    # Check for citation density (multiple numbered citations)
+    # check for citation density (multiple numbered citations)
     citation_pattern = r'^\s*\d+\.\s+[A-Z][^.]+\.\s+\(\d{4}\)'
     citation_matches = re.findall(citation_pattern, text, re.MULTILINE)
 
-    # If more than 3 citations on a page, likely references
+    # if more than 3 citations on a page, likely references
     if len(citation_matches) >= 3:
         return True
 
@@ -157,7 +157,7 @@ def extract_page_metadata(doc, page_no, count_tokens):
     """
     from docling_core.types.doc.labels import DocItemLabel
 
-    # Extract items with provenance for this page
+    # extract items with provenance for this page
     page_items = []
     in_references = False
 
@@ -168,7 +168,7 @@ def extract_page_metadata(doc, page_no, count_tokens):
                     item_label = item.label.value if hasattr(item, 'label') else "unknown"
                     item_text = item.text if hasattr(item, 'text') else ""
 
-                    # Check if this is the start of references section
+                    # check if this is the start of references section
                     if item_label == "section_header":
                         text_lower = item_text.lower().strip()
                         if any(term in text_lower for term in ['references', 'bibliography', 'works cited', 'literature cited']):
@@ -190,15 +190,15 @@ def extract_page_metadata(doc, page_no, count_tokens):
                     page_items.append(item_data)
                     break  # Only take first prov for this page
 
-    # Export full page content
+    # export full page content
     page_md = doc.export_to_markdown(page_no=page_no)
 
-    # Clean artifacts
+    # clean artifacts
     artifacts_to_remove = ["<!-- image -->", "$$MALFORMED_FORMULA$$"]
     for artifact in artifacts_to_remove:
         page_md = page_md.replace(artifact, "")
 
-    # Separate content before and after references
+    # separate content before and after references
     content_before_refs = []
     reference_content = []
 
@@ -213,7 +213,7 @@ def extract_page_metadata(doc, page_no, count_tokens):
 
     has_references = len(reference_content) > 0
 
-    # Token counts
+    # token counts
     token_count = count_tokens(page_md)
     token_count_before_refs = count_tokens(content_before_refs_text) if content_before_refs_text else 0
     token_count_refs = count_tokens(reference_content_text) if reference_content_text else 0
@@ -244,32 +244,32 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
         conv_res.document.name = f"pdf_row_{idx}"
         doc = conv_res.document
 
-        # Extract document metadata
+        # extract document metadata
         num_pages = len(doc.pages)
         num_tables = len(doc.tables)
         num_pictures = len(doc.pictures)
 
-        # Full markdown export
+        # full markdown export
         text_md = doc.export_to_markdown()
 
-        # Clean artifacts from full text
+        # clean artifacts from full text
         artifacts_to_remove = ["<!-- image -->", "$$MALFORMED_FORMULA$$"]
         for artifact in artifacts_to_remove:
             text_md = text_md.replace(artifact, "")
 
-        # Extract page-level content with provenance
+        # extract page-level content with provenance
         pages_content = []
         for page_no in range(num_pages):
             page_metadata = extract_page_metadata(doc, page_no, count_tokens)
             pages_content.append(page_metadata)
 
-        # Get formulas from the document
+        # get formulas from the document
         formula_list = []
         from docling_core.types.doc import TextItem
         from docling_core.types.doc.labels import DocItemLabel
         for el in doc.texts:
             if isinstance(el, TextItem) and el.label == DocItemLabel.FORMULA and el.text != "$$MALFORMED_FORMULA$$":
-                # Add provenance to formula
+                # add provenance to formula
                 formula_data = {"latex": el.text}
                 if el.prov:
                     formula_data["provenance"] = [
@@ -286,7 +286,7 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
                     ]
                 formula_list.append(formula_data)
 
-        # Process tables with provenance
+        # process tables with provenance
         import warnings
         all_tables_json = []
         for table in doc.tables:
@@ -295,7 +295,7 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
                 table_data = {
                     "data": table.export_to_dataframe(doc=doc).to_dict(orient="records")
                 }
-                # Add table provenance
+                # add table provenance
                 if table.prov:
                     table_data["provenance"] = [
                         {
@@ -351,7 +351,7 @@ def do_docling_extraction(df: pd.DataFrame, max_workers=14, output_dir=None) -> 
             df[col] = None if col == "Error" else (0 if col.startswith("Num") else "")
 
     futures = {}
-    # The initializer ensures each worker gets its GPU assigned
+    # the initializer ensures each worker gets its GPU assigned
     with ProcessPoolExecutor(max_workers=max_workers, initializer=worker_initializer) as executor:
         for idx, row in df.iterrows():
             pdf_path = row.get("PDFPath", "")
@@ -387,7 +387,7 @@ def do_docling_extraction(df: pd.DataFrame, max_workers=14, output_dir=None) -> 
                     print(f"[!] Extraction error row {irow}: {result['Error']}")
                 else:
                     logging.info(f"Extraction successful row {irow}, pages={result['NumPages']}, tables={result['NumTables']}, tokens={result['TokenCount']}")
-                    print(f"[✓] Extraction successful row {irow}: {result['NumPages']} pages, {result['NumTables']} tables")
+                    print(f"[OK] Extraction successful row {irow}: {result['NumPages']} pages, {result['NumTables']} tables")
 
             except Exception as e:
                 logging.exception(f"Multiprocessing extraction exception row {irow}: {e}")

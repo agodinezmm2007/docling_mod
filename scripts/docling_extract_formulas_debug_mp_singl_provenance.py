@@ -12,7 +12,7 @@ import tiktoken
 import re
 # import any other modules that are GPU related only after the workers are initialized
 
-# Single GPU ID to use:
+# single GPU ID to use:
 GPU_ID = 4
 
 def worker_initializer():
@@ -20,22 +20,22 @@ def worker_initializer():
     This initializer is called once per worker process.
     It assigns all workers to the single specified GPU.
     """
-    # IMPORTANT: Set CUDA_VISIBLE_DEVICES early!
+    # IMPORTANT: set CUDA_VISIBLE_DEVICES early!
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU_ID)
     # set other CUDA-related env vars as needed
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:8192"
 
-    # Configure logging for worker process
+    # configure logging for worker process
     import logging
     LOG_FILE = "/mnt/c/Users/WSTATION/Desktop/docling_mods/scripts/logs/docling_testing.log"
 
-    # Clear any existing handlers
+    # clear any existing handlers
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
     root_logger.setLevel(logging.DEBUG)
 
-    # Add file handler
+    # add file handler
     fh = logging.FileHandler(LOG_FILE, mode='a')
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
@@ -76,7 +76,7 @@ def init_debug_pipeline():
         device=AcceleratorDevice.CUDA
     )
 
-    # Configure layout model
+    # configure layout model
     layout_options = LayoutOptions(
         model_spec=DOCLING_LAYOUT_HERON_101
     )
@@ -110,7 +110,7 @@ def is_reference_section(text):
 
     text_lower = text.lower()
 
-    # Check for reference section headers
+    # check for reference section headers
     header_patterns = [
         r'^\s*references?\s*$',
         r'^\s*bibliography\s*$',
@@ -122,11 +122,11 @@ def is_reference_section(text):
         if re.search(pattern, text_lower, re.MULTILINE):
             return True
 
-    # Check for citation density (multiple numbered citations)
+    # check for citation density (multiple numbered citations)
     citation_pattern = r'^\s*\d+\.\s+[A-Z][^.]+\.\s+\(\d{4}\)'
     citation_matches = re.findall(citation_pattern, text, re.MULTILINE)
 
-    # If more than 3 citations on a page, likely references
+    # if more than 3 citations on a page, likely references
     if len(citation_matches) >= 3:
         return True
 
@@ -177,7 +177,7 @@ def _build_page_metadata(args):
     """
     page_no, page_items, count_tokens = args
 
-    # Detect references section (same logic as before, per-page)
+    # detect references section (same logic as before, per-page)
     in_references = False
     for item in page_items:
         if item["label"] == "section_header":
@@ -187,15 +187,15 @@ def _build_page_metadata(args):
                 in_references = True
         item["is_reference"] = in_references
 
-    # Build page content from item texts
+    # build page content from item texts
     all_texts = [item["text"] for item in page_items if item["text"]]
     page_md = "\n\n".join(all_texts)
 
-    # Clean artifacts
+    # clean artifacts
     for artifact in ["<!-- image -->", "$$MALFORMED_FORMULA$$"]:
         page_md = page_md.replace(artifact, "")
 
-    # Separate content before and after references
+    # separate content before and after references
     content_before_refs = [item["text"] for item in page_items
                            if not item["is_reference"] and item["text"]]
     reference_content = [item["text"] for item in page_items
@@ -205,7 +205,7 @@ def _build_page_metadata(args):
     reference_content_text = "\n\n".join(reference_content)
     has_references = len(reference_content) > 0
 
-    # Token counts
+    # token counts
     token_count = count_tokens(page_md)
     token_count_before_refs = count_tokens(content_before_refs_text) if content_before_refs_text else 0
     token_count_refs = count_tokens(reference_content_text) if reference_content_text else 0
@@ -247,7 +247,7 @@ def _export_single_table(table, doc):
         return table_data
 
 
-# Number of threads for post-processing (page metadata, tables, etc.)
+# number of threads for post-processing (page metadata, tables, etc.)
 POST_PROCESS_WORKERS = 22
 
 
@@ -260,18 +260,18 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
     t_total_start = time.time()
     logging.info(f"[Row {idx}] Starting extraction for {pdf_path}")
 
-    # Step 1: Init tokenizer
+    # step 1: init tokenizer
     t0 = time.time()
     count_tokens = init_tokenizer()
     logging.info(f"[Row {idx}] Step 1/6: Tokenizer initialized in {time.time()-t0:.2f}s")
 
-    # Step 2: Init pipeline
+    # step 2: init pipeline
     t0 = time.time()
     converter = init_debug_pipeline()
     logging.info(f"[Row {idx}] Step 2/6: Pipeline initialized in {time.time()-t0:.2f}s")
 
     try:
-        # Step 3: Convert document (GPU-accelerated)
+        # step 3: convert document (GPU-accelerated)
         t0 = time.time()
         conv_res = converter.convert(pdf_path)
         conv_res.document.name = f"pdf_row_{idx}"
@@ -281,7 +281,7 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
         num_pictures = len(doc.pictures)
         logging.info(f"[Row {idx}] Step 3/6: Docling conversion done in {time.time()-t0:.2f}s — {num_pages} pages, {num_tables} tables, {num_pictures} pictures")
 
-        # Step 4: Full markdown export
+        # step 4: full markdown export
         t0 = time.time()
         text_md = doc.export_to_markdown()
         artifacts_to_remove = ["<!-- image -->", "$$MALFORMED_FORMULA$$"]
@@ -289,13 +289,13 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
             text_md = text_md.replace(artifact, "")
         logging.info(f"[Row {idx}] Step 4/6: Full markdown export done in {time.time()-t0:.2f}s ({len(text_md)} chars)")
 
-        # Step 5a: Single-pass iterate_items → bucket by page (one tree traversal)
+        # step 5a: single-pass iterate_items -> bucket by page (one tree traversal)
         t0 = time.time()
         page_items_map = _build_all_page_items(doc)
         total_items = sum(len(v) for v in page_items_map.values())
         logging.info(f"[Row {idx}] Step 5a/6: Single-pass item bucketing done in {time.time()-t0:.2f}s ({total_items} items across {len(page_items_map)} pages)")
 
-        # Step 5b: Build page metadata from buckets (threaded, no doc access)
+        # step 5b: build page metadata from buckets (threaded, no doc access)
         t0 = time.time()
         pages_content = [None] * num_pages
         args_list = [
@@ -320,10 +320,10 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
                     logging.info(f"[Row {idx}] Step 5b/6: Page metadata progress {done_count}/{num_pages}")
         logging.info(f"[Row {idx}] Step 5b/6: Page metadata build done in {time.time()-t0:.2f}s ({num_pages} pages, {POST_PROCESS_WORKERS} threads)")
 
-        # Formula enrichment disabled
+        # formula enrichment disabled
         formula_list = []
 
-        # Step 6: Process tables with provenance (threaded)
+        # step 6: process tables with provenance (threaded)
         t0 = time.time()
         all_tables_json = []
         if num_tables > 0:
@@ -387,7 +387,7 @@ def do_docling_extraction(df: pd.DataFrame, max_workers=14, output_dir=None) -> 
             df[col] = None if col == "Error" else (0 if col.startswith("Num") else "")
 
     futures = {}
-    # The initializer ensures each worker gets the single GPU assigned
+    # the initializer ensures each worker gets the single GPU assigned
     with ProcessPoolExecutor(max_workers=max_workers, initializer=worker_initializer) as executor:
         for idx, row in df.iterrows():
             pdf_path = row.get("PDFPath", "")
@@ -423,7 +423,7 @@ def do_docling_extraction(df: pd.DataFrame, max_workers=14, output_dir=None) -> 
                     print(f"[!] Extraction error row {irow}: {result['Error']}")
                 else:
                     logging.info(f"Extraction successful row {irow}, pages={result['NumPages']}, tables={result['NumTables']}, tokens={result['TokenCount']}")
-                    print(f"[✓] Extraction successful row {irow}: {result['NumPages']} pages, {result['NumTables']} tables")
+                    print(f"[OK] Extraction successful row {irow}: {result['NumPages']} pages, {result['NumTables']} tables")
 
             except Exception as e:
                 logging.exception(f"Multiprocessing extraction exception row {irow}: {e}")

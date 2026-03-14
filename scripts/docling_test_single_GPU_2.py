@@ -13,7 +13,7 @@ import pandas as pd
 multiprocessing.set_start_method("spawn", force=True)
 
 # list of GPU IDs you want to use (single-GPU)
-GPU_IDS = ["1"]
+GPU_IDS = ["0"]
 
 # global variables for assigning GPUs
 assign_lock = multiprocessing.Lock()
@@ -46,14 +46,13 @@ def worker_initializer():
     logging.info(f"Worker {multiprocessing.current_process().name} assigned GPU:{os.environ['CUDA_VISIBLE_DEVICES']}")
 
 
-
 def init_converter():
     from docling.document_converter import DocumentConverter, PdfFormatOption
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import AcceleratorOptions, AcceleratorDevice, PdfPipelineOptions
 
     accelerator_options = AcceleratorOptions(
-        num_threads=6,
+        num_threads=8,
         device=AcceleratorDevice.CUDA
     )
 
