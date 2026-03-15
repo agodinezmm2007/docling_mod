@@ -1,11 +1,7 @@
-# -*- coding: utf-8 -*-
-
 """
 Adapted from https://github.com/xiilei/dwml/blob/master/dwml/latex_dict.py
 On 23/01/2025
 """
-
-from __future__ import unicode_literals
 
 CHARS = ("{", "}", "_", "^", "#", "&", "$", "%", "~")
 
@@ -79,7 +75,6 @@ CHR_BO = {
 }
 
 T = {
-    "\u2192": "\\rightarrow ",
     # Greek letters
     "\U0001d6fc": "\\alpha ",
     "\U0001d6fd": "\\beta ",
@@ -215,6 +210,9 @@ FUNC = {
     "coth": "\\coth({fe})",
     "sec": "\\sec({fe})",
     "csc": "\\csc({fe})",
+    "mod": "\\mod {fe}",
+    "max": "\\max({fe})",
+    "min": "\\min({fe})",
 }
 
 FUNC_PLACE = "{fe}"
