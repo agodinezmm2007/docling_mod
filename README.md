@@ -1,63 +1,165 @@
-# Modified & Enhanced Docling (docling_mod)
+# Modified Docling (docling_mod)
 
-This repository contains a modified and significantly enhanced version of IBM's Docling library, designed for high-throughput, robust analysis of scholarly articles. These modifications were developed to overcome specific limitations in the original library related to performance, accuracy, and stability, as detailed in my [technical report](https://agodinezmm2007.github.io/project_portfolio/05-technical-report.html#stage-4-content-extraction-via-document-layout-analysis).
+Base versions: docling 2.62.0, docling_core 2.51.1, docling_ibm_models 3.10.2, docling_parse 4.7.1
 
-The code here is primarily for testing and validation purposes.
+Modified fork of IBM's Docling library for batch processing of academic PDFs. Details in the [technical report](https://agodinezmm2007.github.io/project_portfolio/05-technical-report.html#stage-4-content-extraction-via-document-layout-analysis).
 
-## Key Features & Enhancements
+# Glyphs
 
-This modified version includes several critical enhancements over the base Docling library:
+this version for docling 2.62.0 does not modify docling_parse/pdf_resources_v2/glyphs/standard/glyphlist.dat like in the previous version. common missing glyphs in the 198 test PDFs are
 
-- **Multi-GPU Parallelization:** A custom architecture using Python's `ProcessPoolExecutor` allows Docling to run as a distributed application across multiple GPUs, dramatically reducing processing time.
-- **Efficient Formula Recognition:** Replaced the resource-intensive (30 GB VRAM) formula model with SmolDocling model, reducing VRAM requirements to 8 GB and making it usable on smaller GPUs (12 GB 4070 Super).
-- **Advanced Layout Post-Processing:** Engineered rule-based heuristics to automatically correct common layout analysis errors, such as merging fragmented mathematical formulas and re-classifying entire pages that were misidentified as tables.
-- **Stability Fixes:** Addressed persistent glyph-parsing errors by reverse-engineering and patching the core C-extension library, preventing crashes during large-scale runs.
+- /uniFB00 (ff ligature, 547 occurrences across 198 PDFs)
+- /uniFB01 (fi ligature, 1180 occurrences)
+- /uniFB02 (fl ligature, 298 occurrences)
+- /uniFB03 (ffi ligature, 84 occurrences)
+- /uniFB04 (ffl ligature, 1 occurrence)
+- /uni03F5 (greek lunate epsilon, 4 occurrences)
+- /uni262F (yin yang, 3 occurrences)
+- /uni202F (narrow no-break space, 1 occurrence)
+
+GLYPH<N> tokens from unmapped character codes (found in MDPI, Copernicus, PeerJ, PLOS, Elsevier PDFs):
+
+- GLYPH<0>: 743 occurrences
+- GLYPH<1>: 365
+- GLYPH<21>: 147
+- GLYPH<14>: 108
+- GLYPH<25>: 63
+- GLYPH<26>: 63
+- GLYPH<6>: 60
+- GLYPH<11>: 47
+- GLYPH<8>: 28
+- GLYPH<2>: 25
+- GLYPH<15>: 22
+- GLYPH<24>: 14
+- GLYPH<c=0,font=/DejaVuMathTeXGyre-Regular>: 10
+- GLYPH<13>: 8
+- GLYPH<3>: 8
+- GLYPH<12>: 3
+- GLYPH<229>: 1
+
+45 of 198 articles contain at least one GLYPH or /uni token. 22 have GLYPH<N> tokens (MDPI: 13, Copernicus: 5, PeerJ: 2, PLOS: 1, Elsevier: 1). 23 have /uni tokens (Elsevier: 8, BMJ: 5, Springer Nature: 2, Japan Epidemiological Association: 2, PLOS: 3, others: 3). No article has both types.
+
+The code here is for testing and validation.
+
+## Purpose
+
+- Multi-GPU parallelization via `ProcessPoolExecutor` with round-robin GPU assignment
+- Formula/code extraction rewritten to use a vLLM API endpoint serving `granite-vision-3.3-2b` (replaces the stock codeformula/smoldocling model).
+
+Docker command for granite-vision-3.3b-2b
+
+```
+docker run --name docling-granite-vision \
+  --gpus '"device=0,3"' \
+  --privileged \
+  --ipc=host \
+  -p 8006:8000 \
+  -e OMP_NUM_THREADS=6 \
+  -e VLLM_USE_V1=1 \
+  -e CUDA_DEVICE_ORDER=PCI_BUS_ID \
+  -e CUDA_VISIBLE_DEVICES=0,3 \
+  -v /mnt/c/Users/WSTATION/Desktop/docling_mods/model_cache:/root/.cache/huggingface \
+  nvcr.io/nvidia/vllm:25.09-py3 \
+  vllm serve ibm-granite/granite-vision-3.3-2b \
+      --port 8000 \
+	  --tensor-parallel-size 2 \
+	  --gpu-memory-utilization 0.9 \
+	  --trust-remote-code \
+	  --max-model-len 16384 
+      --limit-mm-per-prompt '{"image": 1}' \
+      --dtype auto
+```
+
+- scripts/code_formula_model_vllm_api.py is what site-packages/docling/models/code_formula_model.py looks like
+- Layout post-processing: merging fragmented formulas, re-classifying pages misidentified as tables
+
 
 ## Installation
 
-It is strongly recommended to use a dedicated virtual environment (like `venv` or `conda`) to avoid conflicts with existing packages.
+These modifications target docling 2.62.0 specifically
 
-1. **Create and activate a new virtual environment.**
-2. **Install Base Docling:** First, install the original `docling` package and its dependencies via pip. This will ensure all base requirements are met.
-3. **Replace with Modified Files:** Copy the folders from the `site-packages` directory in this repository into your virtual environment's `site-packages` folder, replacing the original `docling` and `docling_ibm_models` folders.
-4. **Install Additional Dependencies:** You will likely need to install a few extra packages. The main ones are:
+Use a dedicated virtual environment (`venv` or `conda`).
 
-```bash
-   pip install accelerate flash-attn
+1. Create and activate the environment.
+2. Install dependencies: `pip install -r requirements.txt`
+3. Copy the folders from `site-packages/` in this repository into the environment's `site-packages/`, overwriting the stock files.
+
+## Extraction Scripts
+
+Extraction scripts live in `scripts/`. All follow the same pattern: scan a PDF folder, build a DataFrame, run multi-process extraction, save results as a feather file.
+
+Provenance scripts output `PagesJson` (per-page content with bounding boxes, reference detection, token counts) and `EquationsJson` with bbox provenance. Non-provenance scripts output `FullText`, `TablesJson`, and `EquationsJson` (latex only, no bbox).
+
+| Script | GPUs | Provenance | Layout images |
+| --- | --- | --- | --- |
+| `docling_extract_formulas_mp_multi_provenance.py` | Multi | Yes | No |
+| `docling_extract_formulas_debug_mp_mult_provenance.py` | Multi | Yes | Yes |
+| `docling_extract_formulas_debug_mp_singl_provenance.py` | Single | Yes | Yes |
+| `docling_extract_formulas_mp_multi.py` | Multi | No | Via `DEBUG_OUTPUT_PATH` |
+| `docling_extract_formulas_mp_singl.py` | Single | No | Via `DEBUG_OUTPUT_PATH` |
+
+## Other scripts
+
+`scripts/pdf_cleaner.py` - used to strip characters in PDFs which mess with the pdf text parsing and layout detection. used at yoru own risk
+`scripts/topic_text_reconstruction.py` - used to strip text of footnotes, section headers, references, author names, stray characters, and other text which could interfere with LDA topic modeling
+
+### GPU Configuration
+
+Edit the GPU variable near the top of each script (line 17):
+
+```python
+# multi-GPU scripts
+GPU_IDS = [2, 4]
+
+# single-GPU script
+GPU_ID = 4
 ```
 
-## How to Test
+Set these to match the GPU indices on your machine (`nvidia-smi` to check).
 
-This repository includes scripts and sample data to test the stability and functionality of the modified pipeline.
+### Running from the Command Line
+
+```bash
+cd scripts
+
+# defaults: reads from sample_pdfs_cleaned/, writes to output/
+python docling_extract_formulas_debug_mp_mult_provenance.py
+
+# specify a PDF folder
+python docling_extract_formulas_debug_mp_mult_provenance.py /path/to/pdfs
+
+# specify PDF folder and output feather
+python docling_extract_formulas_debug_mp_mult_provenance.py /path/to/pdfs /path/to/output.feather
+
+# debug scripts accept a third arg for layout image output directory
+python docling_extract_formulas_debug_mp_mult_provenance.py /path/to/pdfs /path/to/output.feather /path/to/debug_images
+```
+
+Each run creates a timestamped log file in `scripts/logs/` and a timestamped feather file in `scripts/output/`. Debug scripts also write raw and postprocessed layout images to the debug output directory (defaults to `docling_debug/` at the repo root).
+
+### Running from the Notebook
+
+`scripts/sample.ipynb` imports `do_docling_extraction` from whichever script you choose. To switch between scripts, change the import in cell 3:
+
+```python
+# non-debug (no layout images)
+from docling_extract_formulas_mp_multi_provenance import do_docling_extraction
+
+# debug (generates layout images)
+from docling_extract_formulas_debug_mp_mult_provenance import do_docling_extraction
+```
+
+The `output_dir` parameter in cell 6 controls where debug layout images are saved. It has no effect when using the non-debug script.
 
 ### Test Data
 
-The `data/` folder contains a subfolder with **190 academic journal articles** ready for processing.
-
-### Test Scripts
-
-The `scripts/` folder contains several scripts to run the pipeline:
-
-- `scripts/docling_test_single_GPU.py` — Tests processing on a single GPU.  
-- `scripts/docling_extract_formulas_mp_multi.py` — Tests processing across multiple GPUs.  
-- `scripts/docling_test_nb.ipynb` — A Jupyter Notebook that provides a step-by-step walkthrough of the process. This is the easiest way to get started.
+`data/` contains a subfolder with 190 academic journal articles. `scripts/sample_pdfs/` has 12 PDFs for quick tests.
 
 ## Debugging
 
-If you want to visualize the model's intermediate steps, you can uncomment lines in the source code:
+- Masked page images: uncomment the 4 lines at `base_models.py` line ~437 (`export_dir.mkdir(...)`, `export_file = ...`, `masked.save(...)`, `_log.info(...)`) in the venv's `site-packages/docling/datamodel/base_models.py`. Saves the page image with non-formula content masked out.
+- Formula snippets: `code_formula_predictor.py` line ~182 (`img.save(image_filename, ...)`) in the venv's `site-packages/docling_ibm_models/code_formula_model/code_formula_predictor.py` saves snippet PNGs and DocTags HTML unconditionally during formula prediction. No uncommenting needed.
 
-- **To Save Masked Page Images:**  
-  Uncomment the `Image.save()` line around here in [base_models.py](https://github.com/agodinezmm2007/docling_mod/blob/ea18bf4a42373318ed9d108c4ca8d597a19a1151/site-packages/docling/datamodel/base_models.py#L341). This shows the page with all non-formula content grayed out.
+## Known Issues
 
-- **To Save Formula Snippets:**  
-  Uncomment the `snippet.save()` line around here in [code_formula_predictor.py](https://github.com/agodinezmm2007/docling_mod/blob/ea18bf4a42373318ed9d108c4ca8d597a19a1151/site-packages/docling_ibm_models/code_formula_model/code_formula_predictor.py#L280). This saves the cropped image of each formula sent to the "SmolDocling" model.
-
-## Known Issues & Limitations
-
-- **Stability:** The system may crash when processing certain PDFs, particularly those containing "prompting", mainly from articles discussing LLMs. This is a known issue that requires further troubleshooting.  
-- **Layout Errors:** Some pages are still occasionally misclassified as large tables. The post-processing heuristics catch many of these but not all.  
-- **GPU Errors:** While multi-GPU processing has been tested successfully on two NVlinked Ampere RTX A6000 GPUs, it has caused CUDA errors on a specific model (a Chinese-market 4090D). This may be a hardware-specific issue as it does not occur on the A6000s or the 4070. 
-
-
-
-
+- Some pages are still misclassified as large tables. The post-processing heuristics catch many but not all cases. lots of glyph issues 

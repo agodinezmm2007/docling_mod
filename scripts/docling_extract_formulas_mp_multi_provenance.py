@@ -1,4 +1,4 @@
-# docling_extract_formulas_debug_mp_multi_provenance.py
+# docling_extract_formulas_mp_multi_provenance.py
 
 import os
 import time
@@ -15,11 +15,6 @@ import glob
 
 # list of GPU IDs you want to use:
 GPU_IDS = [2, 4]
-
-# debug output path for layout visualization images
-# set this before calling do_docling_extraction() to override the default
-# default: <script_dir>/../docling_debug
-DEBUG_OUTPUT_PATH = None
 
 # global variables for assigning GPUs
 assign_lock = multiprocessing.Lock()
@@ -65,7 +60,7 @@ def worker_initializer():
     logging.info(f"Worker {multiprocessing.current_process().name} assigned GPU:{os.environ['CUDA_VISIBLE_DEVICES']}")
 
     # load converter and tokenizer once per worker
-    _worker_converter = init_debug_pipeline()
+    _worker_converter = init_pipeline()
     _worker_tokenizer = init_tokenizer()
     logging.info(f"Worker {multiprocessing.current_process().name} converter and tokenizer initialized")
 
@@ -76,10 +71,10 @@ def init_tokenizer():
     except ImportError:
         return lambda text: 0
 
-def init_debug_pipeline():
+def init_pipeline():
     """
     Called once in each worker process to set environment variables and
-    create a DocumentConverter with the debug pipeline.
+    create a DocumentConverter.
     Note: Since we already set CUDA_VISIBLE_DEVICES in the initializer,
     we do not need to reset it here.
     """
@@ -92,7 +87,6 @@ def init_debug_pipeline():
         DOCLING_LAYOUT_HERON_101  # 76.7M parameter model
     )
     from docling.datamodel.base_models import InputFormat
-    from docling.datamodel.settings import settings
 
     # adjust additional environment settings if required
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:8192"
@@ -113,18 +107,9 @@ def init_debug_pipeline():
     pipeline_options.do_ocr = False
     pipeline_options.do_formula_enrichment = True
     pipeline_options.do_table_structure = True
-    pipeline_options.generate_page_images = True
-    pipeline_options.generate_parsed_pages = True
+    pipeline_options.generate_page_images = True # formula extraction pipeline needs generate_page_images = True because code_formula_predictor.py calls page.get_masked_image()
+    pipeline_options.generate_parsed_pages = True # generate_parsed_pages = True keeps the parsed cell data available, which feeds into provenance extraction 
     pipeline_options.images_scale = 2.0
-
-    # enable debug visualization for bounding boxes
-    debug_path = DEBUG_OUTPUT_PATH
-    if debug_path is None:
-        debug_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docling_debug")
-    os.makedirs(debug_path, exist_ok=True)
-    settings.debug.visualize_raw_layout = True
-    settings.debug.visualize_layout = True
-    settings.debug.debug_output_path = debug_path
 
     converter = DocumentConverter(
         format_options={
@@ -361,8 +346,7 @@ POST_PROCESS_WORKERS = 12
 
 def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
     """
-    In the child process, reinitialize the debug pipeline, convert the PDF,
-    and return the results with page-level provenance.
+    In the child process, convert the PDF and return results with page-level provenance.
     Post-processing uses ThreadPoolExecutor for parallelism within a single PDF.
     """
     global _worker_converter, _worker_tokenizer
@@ -548,11 +532,8 @@ def do_docling_extraction(df: pd.DataFrame, max_workers=10, output_dir=None) -> 
     Processes each PDF row in parallel using the ProcessPoolExecutor.
     This version uses the worker_initializer to distribute GPUs.
     """
-    global DEBUG_OUTPUT_PATH
-    if output_dir is not None:
-        DEBUG_OUTPUT_PATH = output_dir
     logging.info("Starting multiprocessing docling extraction on %d records using max_workers=%d", len(df), max_workers)
-    print("[Step 9/11] Extracting text/tables/formulas via Docling (Multiprocessing Multi-GPU Debug with Provenance)...")
+    print("[Step 9/11] Extracting text/tables/formulas via Docling (Multiprocessing Multi-GPU with Provenance)...")
     for col in ["FullText", "PagesJson", "TablesJson", "EquationsJson", "TokenCount", "NumPages", "NumTables", "NumPictures", "Error"]:
         if col not in df.columns:
             df[col] = None if col == "Error" else (0 if col.startswith("Num") else "")
@@ -633,7 +614,7 @@ if __name__ == "__main__":
     os.makedirs(LOG_DIR, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    LOG_FILE = os.path.join(LOG_DIR, f"multi_debug_provenance_{timestamp}.log")
+    LOG_FILE = os.path.join(LOG_DIR, f"multi_provenance_{timestamp}.log")
 
     logging.basicConfig(
         filename=LOG_FILE,
@@ -650,18 +631,15 @@ if __name__ == "__main__":
     PDF_FOLDER = os.path.join(SCRIPT_DIR, "sample_pdfs")
     OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    OUTPUT_PATH = os.path.join(OUTPUT_DIR, f"multi_debug_provenance_{timestamp}.feather")
+    OUTPUT_PATH = os.path.join(OUTPUT_DIR, f"multi_provenance_{timestamp}.feather")
 
     if len(sys.argv) > 1:
         PDF_FOLDER = sys.argv[1]
     if len(sys.argv) > 2:
         OUTPUT_PATH = sys.argv[2]
-    if len(sys.argv) > 3:
-        DEBUG_OUTPUT_PATH = sys.argv[3]
 
     logging.info(f"PDF folder: {PDF_FOLDER}")
     logging.info(f"Output: {OUTPUT_PATH}")
-    logging.info(f"Debug images: {DEBUG_OUTPUT_PATH or os.path.join(SCRIPT_DIR, '..', 'docling_debug')}")
     logging.info(f"Log: {LOG_FILE}")
 
     df = create_pdf_dataframe(PDF_FOLDER)

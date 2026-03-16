@@ -198,8 +198,6 @@ def clean_content_stream(input_path, output_path=None):
     Detects and removes:
     - Render mode 3 (invisible text)
     - Zero/near-zero font size (Tf and Tm operators)
-    - Clipped text (W/W* operators)
-    - White text (g/rg color operators with value > 0.99)
 
     Returns stats dict with counts per category and total removed.
     """
@@ -221,8 +219,6 @@ def clean_content_stream(input_path, output_path=None):
         stats = {
             "render_mode_3": 0,
             "zero_font_size": 0,
-            "clipped": 0,
-            "white_text": 0,
             "total_removed": 0,
         }
 
@@ -241,8 +237,7 @@ def clean_content_stream(input_path, output_path=None):
             page_removed = 0
             render_mode = 0
             font_size = 12
-            in_clipping = False
-            current_color = None
+            zero_font_active = False
             skip_next_text = False
 
             for operands, operator in parsed:
@@ -252,15 +247,15 @@ def clean_content_stream(input_path, output_path=None):
                         render_mode = int(operands[0])
                         if render_mode == 3:
                             skip_next_text = True
-                            stats["render_mode_3"] += 1
 
                 # font size via Tf
                 elif operator == Operator("Tf"):
                     if operands and len(operands) > 1:
                         font_size = float(operands[1])
                         if abs(font_size) < 0.1:
-                            skip_next_text = True
-                            stats["zero_font_size"] += 1
+                            zero_font_active = True
+                        else:
+                            zero_font_active = False
 
                 # font size via Tm matrix
                 elif operator == Operator("Tm"):
@@ -271,42 +266,24 @@ def clean_content_stream(input_path, output_path=None):
                         d = float(operands[3])
                         effective_size = max(abs(a), abs(b), abs(c), abs(d))
                         if effective_size < 0.1:
-                            skip_next_text = True
-                            stats["zero_font_size"] += 1
-
-                # clipping paths
-                elif operator in [Operator("W"), Operator("W*")]:
-                    in_clipping = True
-                    stats["clipped"] += 1
-
-                # gray color
-                elif operator == Operator("g"):
-                    if operands and len(operands) > 0:
-                        if float(operands[0]) > 0.99:
-                            current_color = "white"
-
-                # rgb color
-                elif operator == Operator("rg"):
-                    if operands and len(operands) >= 3:
-                        r, g, b = float(operands[0]), float(operands[1]), float(operands[2])
-                        if r > 0.99 and g > 0.99 and b > 0.99:
-                            current_color = "white"
-                            stats["white_text"] += 1
+                            zero_font_active = True
+                        else:
+                            zero_font_active = False
 
                 # text-showing operators
                 elif operator in [
                     Operator("Tj"), Operator("TJ"),
                     Operator("'"), Operator('"'),
                 ]:
-                    if skip_next_text or in_clipping or current_color == "white":
+                    if skip_next_text or zero_font_active:
                         stats["total_removed"] += 1
+                        if skip_next_text:
+                            stats["render_mode_3"] += 1
+                        elif zero_font_active:
+                            stats["zero_font_size"] += 1
                         page_removed += 1
                         skip_next_text = False
                         continue
-
-                # save/restore graphics state
-                elif operator == Operator("Q"):
-                    in_clipping = False
 
                 filtered_ops.append([operands, operator])
 
@@ -329,9 +306,9 @@ def clean_content_stream(input_path, output_path=None):
             logger.error("clean_content_stream: failed to save %s: %s", output_path, e, exc_info=True)
             raise
 
-        logger.info("clean_content_stream complete: %s | render_mode_3=%d, zero_font=%d, clipped=%d, white=%d, total_removed=%d",
+        logger.info("clean_content_stream complete: %s | render_mode_3=%d, zero_font=%d, total_removed=%d",
                      input_path.name, stats["render_mode_3"], stats["zero_font_size"],
-                     stats["clipped"], stats["white_text"], stats["total_removed"])
+                     stats["total_removed"])
         return stats
     except Exception:
         logger.exception("clean_content_stream failed for %s", input_path)
@@ -399,7 +376,6 @@ def _batch_worker(args):
     Worker function: full pipeline per PDF.
     1. Analyze with both methods (spans + content stream) and log findings
     2. Clean with content stream filtering (surgical removal)
-    3. Clean with Ghostscript re-render (final pass)
     """
     pdf_path, output_dir, timeout = args
     pdf_path = Path(pdf_path)
@@ -408,7 +384,7 @@ def _batch_worker(args):
 
     result = {
         "analysis": {"spans": None, "stream": None},
-        "cleaning": {"content_stream": None, "ghostscript": None},
+        "cleaning": {"content_stream": None},
         "error": None,
     }
 
@@ -450,44 +426,18 @@ def _batch_worker(args):
             result["cleaning"]["content_stream"] = cs_stats
         except Exception as e:
             logger.error("CLEAN %s: content stream cleaning failed: %s", pdf_path.name, e)
-            # If content stream cleaning fails, copy original to output for ghostscript pass
+            # If content stream cleaning fails, copy original to output
             try:
                 import shutil
                 shutil.copy2(pdf_path, output_path)
             except Exception as copy_err:
-                logger.error("CLEAN %s: failed to copy original for ghostscript fallback: %s",
+                logger.error("CLEAN %s: failed to copy original: %s",
                              pdf_path.name, copy_err)
 
-        # --- Phase 3: Clean with Ghostscript re-render ---
-        # Run ghostscript on the output from phase 2 (or the original if phase 2 failed)
-        if output_path.exists():
-            gs_input = output_path
-            gs_temp = output_path.parent / f"{output_path.stem}_gs_temp.pdf"
-            try:
-                gs_success, gs_error = clean_ghostscript(gs_input, gs_temp, timeout)
-                if gs_success:
-                    gs_temp.replace(output_path)
-                    result["cleaning"]["ghostscript"] = {"success": True}
-                else:
-                    result["cleaning"]["ghostscript"] = {"success": False, "error": gs_error}
-                    logger.warning("CLEAN %s: ghostscript pass failed: %s", pdf_path.name, gs_error)
-                    # Keep the content-stream-cleaned version
-            except Exception as e:
-                result["cleaning"]["ghostscript"] = {"success": False, "error": str(e)[:500]}
-                logger.error("CLEAN %s: ghostscript pass error: %s", pdf_path.name, e)
-            finally:
-                if gs_temp.exists():
-                    gs_temp.unlink()
-        else:
-            # Neither cleaning method produced output
-            gs_success, gs_error = clean_ghostscript(pdf_path, output_path, timeout)
-            result["cleaning"]["ghostscript"] = {"success": gs_success, "error": gs_error}
-
         elapsed = time.time() - file_start
-        logger.info("DONE %s in %.1fs | cs_removed=%d, gs=%s",
+        logger.info("DONE %s in %.1fs | cs_removed=%d",
                      pdf_path.name, elapsed,
-                     cs_stats["total_removed"] if result["cleaning"]["content_stream"] else 0,
-                     "ok" if result["cleaning"].get("ghostscript", {}).get("success") else "failed")
+                     cs_stats["total_removed"] if result["cleaning"]["content_stream"] else 0)
 
         return str(pdf_path), True, result
 
@@ -499,14 +449,14 @@ def _batch_worker(args):
 
 def batch_clean(input_dir, output_dir, max_workers=None, timeout=120):
     """
-    Clean all PDFs in a directory using the full pipeline:
-    analyze (spans + stream) -> clean (content stream) -> clean (ghostscript).
+    Clean all PDFs in a directory using the pipeline:
+    analyze (spans + stream) -> clean (content stream).
 
     Args:
         input_dir: Directory containing PDFs.
         output_dir: Output directory for cleaned PDFs.
         max_workers: Number of parallel workers (default: min(cpu_count, 8)).
-        timeout: Per-file timeout in seconds (Ghostscript).
+        timeout: Per-file timeout in seconds (unused, kept for CLI compat).
 
     Returns:
         (success_count, failed_count, failed_files) where failed_files is
@@ -541,7 +491,7 @@ def batch_clean(input_dir, output_dir, max_workers=None, timeout=120):
                 input_path, output_path, max_workers, total)
     print(f"Found {total} PDF files in {input_path}")
     print(f"Output: {output_path}")
-    print(f"Pipeline: analyze (spans+stream) -> clean (content_stream) -> clean (ghostscript)")
+    print(f"Pipeline: analyze (spans+stream) -> clean (content_stream)")
     print(f"Workers: {max_workers}\n")
 
     success_count = 0
@@ -550,8 +500,6 @@ def batch_clean(input_dir, output_dir, max_workers=None, timeout=120):
     aggregate_stats = {
         "render_mode_3": 0,
         "zero_font_size": 0,
-        "clipped": 0,
-        "white_text": 0,
         "total_removed": 0,
     }
     start_time = time.time()
@@ -569,12 +517,11 @@ def batch_clean(input_dir, output_dir, max_workers=None, timeout=120):
                     success_count += 1
                     cs_stats = result.get("cleaning", {}).get("content_stream")
                     removed = cs_stats["total_removed"] if cs_stats else 0
-                    gs_ok = result.get("cleaning", {}).get("ghostscript", {}).get("success", False)
-                    logger.info("[%d/%d] OK %s (removed=%d, gs=%s)",
+                    logger.info("[%d/%d] OK %s (removed=%d)",
                                 success_count + failed_count, total, Path(pdf_path).name,
-                                removed, "ok" if gs_ok else "failed")
+                                removed)
                     print(f"[{success_count + failed_count}/{total}] OK  {Path(pdf_path).name} "
-                          f"(removed={removed}, gs={'ok' if gs_ok else 'failed'})")
+                          f"(removed={removed})")
                     if cs_stats:
                         for key in aggregate_stats:
                             aggregate_stats[key] += cs_stats.get(key, 0)
@@ -599,13 +546,11 @@ def batch_clean(input_dir, output_dir, max_workers=None, timeout=120):
                 success_count, failed_count, elapsed, elapsed / total if total else 0)
 
     if aggregate_stats["total_removed"] > 0:
-        logger.info("Aggregate removal stats: render_mode_3=%d, zero_font=%d, clipped=%d, white=%d, total_removed=%d",
+        logger.info("Aggregate removal stats: render_mode_3=%d, zero_font=%d, total_removed=%d",
                      aggregate_stats["render_mode_3"], aggregate_stats["zero_font_size"],
-                     aggregate_stats["clipped"], aggregate_stats["white_text"],
                      aggregate_stats["total_removed"])
         print(f"\nAggregate: {aggregate_stats['total_removed']} invisible text operators removed "
-              f"(render_mode_3={aggregate_stats['render_mode_3']}, zero_font={aggregate_stats['zero_font_size']}, "
-              f"clipped={aggregate_stats['clipped']}, white={aggregate_stats['white_text']})")
+              f"(render_mode_3={aggregate_stats['render_mode_3']}, zero_font={aggregate_stats['zero_font_size']})")
 
     if failed_files:
         logger.error("=== FAILED FILES (%d) ===", len(failed_files))
@@ -732,7 +677,6 @@ def main():
                 print(f"\nRemoval statistics:")
                 print(f"  Render mode 3: {stats['render_mode_3']}")
                 print(f"  Zero font size: {stats['zero_font_size']}")
-                print(f"  Clipped text: {stats['clipped']}")
                 print(f"  White text: {stats['white_text']}")
                 print(f"  Total removed: {stats['total_removed']}")
             else:

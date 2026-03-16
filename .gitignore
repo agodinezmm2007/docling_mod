@@ -2,6 +2,14 @@ docling_debug/
 data/figures/
 TEST/
 /PICTURE_PROCESSING_INVESTIGATION.md
+docling_debug_recleaned/
+docling_debug_recleaned_new/
+docling_debug_uncleaned_new/
+layout_sheets/
+page1_renders/
+page1_sheets/
+docling_debug_uncleaned/
+.playwright-mcp/
 
 # Logs
 docling_test_logs/
@@ -22,10 +30,31 @@ docling_parse.txt
 MODIFIED FILES.txt
 small_pc_packages.text
 TABLE.png
+charspan_method_replacement.txt
+charspan_method_replacement2.txt
+charspan_method.txt
+claude_code_incident_report_20260315.md
+layout_comparison_scores.csv
+layout_comparison.html
+session_failures_20260315.md
+topic_text_diagnostics4.txt
+topic_text_diagnostics3.txt
+topic_text_diagnostics2.txt
+topic_text_diagnostics.txt
+session_summary_20260316.md
+CLAUDE.md
 
 # Script data directories
 scripts/output/
-scripts/sample_pdfs/
+
 scripts/sample_pdfs_cleaned/
+
 scripts/smaple_pdfs/
 scripts/docling.txt
+
+
+# Plans
+plans/
+.claude/
+.vscode/
+comparisons/
