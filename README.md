@@ -43,8 +43,6 @@ GLYPH<N> tokens from unmapped character codes (found in MDPI, Copernicus, PeerJ,
 
 To attempt to resolve glyphs I attempt post processing instead of adding missing glyphs to source .dat files. To first detect glyphs I run `scripts/glyph_unifb_analysis.py` which detects instances of `uniFB` and `GLYPH<N>` in the FullText/text items on PagesJson columns. then ones theyre identified I attempt to resolve them using `scripts/fix_uni_tokens.py`. resolving `GLYPH<N>` requires to first map the `GLYPH<N>`s to their corresponding `uniFB` symbols
 
-
-
 ## Purpose
 
 The primary purpose of this repository is to maximize throughput for batch PDF extraction. Using `scripts/docling_extract_formulas_mp_multi_provenance.py` on 2 GPUs with 10 workers, 198 academic PDFs (3,773 pages total) were fully processed in 6 minutes flat. That includes layout detection, formula/code extraction, table structure, markdown export, and page-level provenance assembly.
@@ -81,7 +79,21 @@ Minimum hardware is two GPUs: one for layout detection / table structure / formu
 | `POST_PROCESS_WORKERS` | Module constant | `12` | Threads for table export and page metadata building within each PDF |
 | `ThreadPoolExecutor` in table export | `extract_pdf_with_docling()` | `min(POST_PROCESS_WORKERS, num_tables)` | Capped to actual table count |
 
-### What this repository modifies
+## Modifications
+
+the following files were modified:
+
+- `v2.62.0/docling/datamodel/base_models.py`
+- `v2.62.0/docling/models/code_formula_model.py`
+- `v2.62.0/docling/datamodel/pipeline_options.py`
+- `v2.62.0/docling/utils/layout_postprocessor.py`
+- `v2.62.0/docling/utils/visualization.py`
+- `v3.10.2/docling_ibm_models/code_formula_model/code_formula_predictor.py`
+- `v3.10.2/docling_ibm_models/layoutmodel/layout_predictor.py`
+
+For the specifics on the changes refer to the `/comparisons` folder. some have more changes than others and describing the changes here feels redundant.
+
+## Throughput Methods
 
 - Multi-GPU parallelization via `ProcessPoolExecutor` with round-robin GPU assignment
 - Formula/code extraction rewritten to use a vLLM API endpoint serving `granite-vision-3.3-2b` (replaces the stock codeformula/smoldocling model)
@@ -112,7 +124,6 @@ docker run --name docling-granite-vision \
 
 - scripts/code_formula_model_vllm_api.py is what site-packages/docling/models/code_formula_model.py looks like
 - Layout post-processing: merging fragmented formulas, re-classifying pages misidentified as tables
-
 
 ## Installation
 
