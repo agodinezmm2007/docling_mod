@@ -1,7 +1,9 @@
-# Modification Report: visualization.py
+# visualization.py
 
 Local: site-packages/docling/utils/visualization.py
+
 GitHub: https://github.com/docling-project/docling/blob/v2.62.0/docling/utils/visualization.py
+
 Local lines: 85 | GitHub lines: 85
 
 ## Summary

@@ -1,7 +1,9 @@
-# Modification Report: layout_model.py
+# layout_model.py
 
 Local: site-packages/docling/models/layout_model.py
+
 GitHub: https://github.com/docling-project/docling/blob/v2.62.0/docling/models/layout_model.py
+
 Local lines: 243 | GitHub lines: 243
 
 ## Summary

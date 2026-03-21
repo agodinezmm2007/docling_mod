@@ -1,7 +1,9 @@
-# Modification Report: code_formula_model.py
+# code_formula_model.py
 
 Local: site-packages/docling/models/code_formula_model.py
+
 GitHub: https://github.com/docling-project/docling/blob/v2.62.0/docling/models/code_formula_model.py
+
 Local lines: 480 | GitHub lines: 337
 
 ## Summary

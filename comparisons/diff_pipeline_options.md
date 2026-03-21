@@ -1,7 +1,9 @@
-# Modification Report: pipeline_options.py
+# pipeline_options.py
 
 Local: site-packages/docling/datamodel/pipeline_options.py
+
 GitHub: https://github.com/docling-project/docling/blob/v2.62.0/docling/datamodel/pipeline_options.py
+
 Local lines: 404 | GitHub lines: 387
 
 ## Summary

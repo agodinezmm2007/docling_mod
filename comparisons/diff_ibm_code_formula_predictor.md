@@ -1,7 +1,9 @@
-# Modification Report: code_formula_predictor.py
+# code_formula_predictor.py
 
 Local: site-packages/docling_ibm_models/code_formula_model/code_formula_predictor.py
+
 GitHub: https://github.com/docling-project/docling-ibm-models/blob/v3.10.2/docling_ibm_models/code_formula_model/code_formula_predictor.py
+
 Local lines: 351 | GitHub lines: 290
 
 ## Summary

@@ -1,7 +1,9 @@
-# Modification Report: layout_predictor.py
+# layout_predictor.py
 
 Local: site-packages/docling_ibm_models/layoutmodel/layout_predictor.py
+
 GitHub: https://github.com/docling-project/docling-ibm-models/blob/v3.10.2/docling_ibm_models/layoutmodel/layout_predictor.py
+
 Local lines: 269 | GitHub lines: 270
 
 ## Summary

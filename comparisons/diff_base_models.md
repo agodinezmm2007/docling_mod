@@ -1,7 +1,9 @@
-# Modification Report: base_models.py
+# base_models.py
 
 Local: site-packages/docling/datamodel/base_models.py
+
 GitHub: https://github.com/docling-project/docling/blob/v2.62.0/docling/datamodel/base_models.py
+
 Local lines: 576 | GitHub lines: 480
 
 ## Summary

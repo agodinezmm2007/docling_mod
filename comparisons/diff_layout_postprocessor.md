@@ -1,7 +1,9 @@
-# Modification Report: layout_postprocessor.py
+# layout_postprocessor.py
 
 Local: site-packages/docling/utils/layout_postprocessor.py
+
 GitHub: https://github.com/docling-project/docling/blob/v2.62.0/docling/utils/layout_postprocessor.py
+
 Local lines: 972 | GitHub lines: 683
 
 ## Summary
