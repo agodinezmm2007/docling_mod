@@ -9,26 +9,26 @@ from io import BytesIO
 from PIL import Image
 import requests
 
-# Image path
+# image path
 IMAGE_PATH = "/mnt/c/Users/WSTATION/Desktop/docling_mods/data/figures/ijerph-19-04851_cleaned_fig4.png"
 
 # API endpoint (port 8006 -> 8000 in container)
 API_URL = "http://localhost:8006/v1/chat/completions"
 
-# Step 1: Load image
+# step 1: load image
 print("Step 1: Loading image...")
 image = Image.open(IMAGE_PATH)
 print(f"  Image size: {image.size}")
 print(f"  Image mode: {image.mode}")
 
-# Step 2: Convert image to PNG and base64 encode (exactly as Docling does)
+# step 2: convert image to PNG and base64 encode (exactly as Docling does)
 print("\nStep 2: Converting to PNG and base64 encoding...")
 img_io = BytesIO()
 image.save(img_io, "PNG")
 image_base64 = base64.b64encode(img_io.getvalue()).decode("utf-8")
 print(f"  Base64 length: {len(image_base64)} characters")
 
-# Step 3: Create OpenAI-compatible messages (Docling format)
+# step 3: create OpenAI-compatible messages (Docling format)
 print("\nStep 3: Creating messages payload...")
 messages = [
     {
@@ -46,7 +46,7 @@ messages = [
     }
 ]
 
-# Step 4: Create request payload
+# step 4: create request payload
 payload = {
     "messages": messages,
     "model": "ibm-granite/granite-vision-3.3-2b",
@@ -59,7 +59,7 @@ print(f"  Model: {payload['model']}")
 print(f"  Max tokens: {payload['max_tokens']}")
 print(f"  Temperature: {payload['temperature']}")
 
-# Step 5: Send POST request to VLLM server
+# step 5: cend POST request to VLLM server
 print(f"\nStep 4: Sending POST request to {API_URL}...")
 try:
     response = requests.post(
@@ -75,7 +75,7 @@ try:
         print("\nStep 5: Parsing response...")
         result = response.json()
 
-        # Extract description from OpenAI-compatible response
+        # extract description from OpenAI-compatible response
         description = result["choices"][0]["message"]["content"].strip()
         usage = result.get("usage", {})
 

@@ -194,13 +194,13 @@ def _build_all_page_items(doc):
                     "b": prov.bbox.b
                 } if prov.bbox else None,
                 "charspan": list(prov.charspan) if prov.charspan else None,
-                "is_reference": False  # Set during per-page post-processing
+                "is_reference": False  # set during per-page post-processing
             }
 
             if page_no not in page_items_map:
                 page_items_map[page_no] = []
             page_items_map[page_no].append(item_data)
-            break  # Only take first prov per item
+            break  # only take first prov per item
 
     return page_items_map
 

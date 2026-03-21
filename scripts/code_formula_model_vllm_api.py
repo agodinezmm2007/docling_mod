@@ -1,6 +1,6 @@
 # code_formula_model_vllm_api.py
-# Modified to use VLLM API endpoint on port 8006 instead of local model
-# Sends formula/code snippets to granite-vision-3.3-2b via API
+# modified to use VLLM API endpoint on port 8006 instead of local model
+# sends formula/code snippets to granite-vision-3.3-2b via API
 
 import re
 import logging
@@ -87,11 +87,11 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
         if not self.enabled:
             return False
 
-        # Check if it's a code snippet item
+        # check if it's a code snippet item
         if isinstance(element, CodeItem) and self.options.do_code_enrichment:
             return True
 
-        # Check if it's a formula-labeled text item
+        # check if it's a formula-labeled text item
         if (
             isinstance(element, TextItem)
             and element.label == DocItemLabel.FORMULA
@@ -117,7 +117,7 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
         width = bbox.r - bbox.l
         height = bbox.t - bbox.b
 
-        # Asymmetric bounding box expansion
+        # asymmetric bounding box expansion
         expanded_bbox = BoundingBox(
             l=bbox.l - width * self.left_expansion_factor,
             t=bbox.t + height * self.expansion_factor,
@@ -129,7 +129,7 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
         page_ix = element_prov.page_no - 1
         page = conv_res.pages[page_ix]
 
-        # Use masked image for formulas, regular for code
+        # use masked image for formulas, regular for code
         if element.label == DocItemLabel.FORMULA:
             pdf_identifier = conv_res.input.file.stem
             cropped_image = page.get_masked_image(
@@ -224,7 +224,7 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
         else:
             pil_img = img.convert("RGB")
 
-        # Compute dynamic padding amounts based on the image dimensions
+        # compute dynamic padding amounts based on the image dimensions
         width, height = pil_img.size
         pad_top = int(height * pad_top_ratio)
         pad_bottom = int(height * pad_bottom_ratio)
@@ -251,27 +251,27 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
             doc_folder = output_path / doc_folder_name
             doc_folder.mkdir(parents=True, exist_ok=True)
 
-            # Build full base name inside that doc_folder
+            # build full base name inside that doc_folder
             base_name = doc_folder / f"snippet_{snippet_id}_raw_doctags"
 
-            # Build HTML filename, and handle collisions
+            # build HTML filename, and handle collisions
             html_filename = Path(str(base_name) + ".html")
             counter = 1
             while html_filename.exists():
                 counter += 1
                 html_filename = Path(f"{base_name}_{counter}.html")
 
-            # Save snippet image as PNG for correlation with HTML
+            # save snippet image as PNG for correlation with HTML
             image_filename = html_filename.with_suffix(".png")
 
-            # Construct DocTagsDocument directly from snippet data
+            # construct DocTagsDocument directly from snippet data
             doctags_doc = DocTagsDocument.from_doctags_and_image_pairs([doctag_output], [img])
 
-            # Initialize with fixed name first, then rename dynamically
+            # initialize with fixed name first, then rename dynamically
             doc = DoclingDocument(name=f"Snippet_{snippet_id}")
             doc.load_from_doctags(doctags_doc)
 
-            # Write files
+            # write files
             img.save(image_filename, format="PNG")
             doc.save_as_html(html_filename)
 
@@ -288,7 +288,7 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
         _log.debug("Starting _parse_docling_output")
         _log.debug("Raw VLM API output:\n%s", raw_text)
 
-        # Step 1: Create a DocTagsDocument from the raw text and image
+        # step 1: Create a DocTagsDocument from the raw text and image
         try:
             _log.debug("Creating DocTagsDocument from raw_text and snippet_img")
             doctags_doc = DocTagsDocument.from_doctags_and_image_pairs([raw_text], [snippet_img])
@@ -297,7 +297,7 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
             _log.error("Error creating DocTagsDocument: %s", e, exc_info=True)
             return ""
 
-        # Step 2: Load the DocTagsDocument into a DoclingDocument
+        # step 2: Load the DocTagsDocument into a DoclingDocument
         try:
             _log.debug("Loading DocTagsDocument into DoclingDocument")
             doc = DoclingDocument.load_from_doctags(doctags_doc, document_name="Document")
@@ -307,7 +307,7 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
             _log.error("Error loading DocTagsDocument into DoclingDocument: %s", e, exc_info=True)
             return ""
 
-        # Step 3: Extract recognized text items based on the label
+        # step 3: Extract recognized text items based on the label
         recognized_str = ""
         try:
             _log.debug("Extracting text items from DoclingDocument")
@@ -321,7 +321,7 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
             _log.error("Error extracting text items from DoclingDocument: %s", e, exc_info=True)
             return ""
 
-        # Check validity explicitly
+        # check validity explicitly
         recognized_str = recognized_str.strip()
         if not recognized_str or "<formula><loc_" in recognized_str:
             _log.warning("Extracted text is empty or malformed. Skipping.")
@@ -336,12 +336,12 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
         Send image to VLLM API endpoint and get response.
         """
         try:
-            # Convert image to base64
+            # convert image to base64
             buffered = BytesIO()
             img.save(buffered, format="PNG")
             img_base64 = base64.b64encode(buffered.getvalue()).decode()
 
-            # Create API request payload
+            # create API request payload
             payload = {
                 "model": "ibm-granite/granite-vision-3.3-2b",
                 "messages": [
@@ -367,7 +367,7 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
 
             _log.debug(f"Sending snippet {snippet_id} to VLLM API at {self.api_url}")
 
-            # Send request
+            # send request
             response = requests.post(
                 self.api_url,
                 json=payload,
@@ -402,10 +402,10 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
 
         images, labels, items, snippet_ids = [], [], [], []
 
-        # Collect and preprocess elements
+        # collect and preprocess elements
         for idx, el in enumerate(element_batch):
             try:
-                # Only process text-based snippets
+                # only process text-based snippets
                 if not isinstance(el.item, TextItem):
                     yield el.item
                     continue
@@ -417,7 +417,7 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
                 else:
                     continue
 
-                # Apply ratio-based padding
+                # apply ratio-based padding
                 try:
                     padded = self._pad_with_most_frequent_edge_color(el.image)
                 except Exception as e:
@@ -436,33 +436,33 @@ class CodeFormulaModel(BaseItemAndImageEnrichmentModel):
 
         _log.info("Starting VLM API prediction for %d images with labels: %s", len(images), labels)
 
-        # Process each snippet via API
+        # process each snippet via API
         for i, (img, lbl, item, snippet_id) in enumerate(zip(images, labels, items, snippet_ids)):
             try:
-                # Get prompt for this label
+                # get prompt for this label
                 prompt = self._get_prompt(lbl)
 
-                # Send to VLM API
+                # send to VLM API
                 api_response = self._send_to_vllm_api(img, prompt, snippet_id)
 
                 if not api_response:
                     _log.warning(f"Snippet {snippet_id} got no response from API. Skipping.")
                     continue
 
-                # Optional: Export snippet for debugging
+                # optional: Export snippet for debugging
                 # self._export_snippet_doctags_html(api_response, img, snippet_id)
 
-                # Parse DocTags output from VLM API to extract recognized text
+                # parse DocTags output from VLM API to extract recognized text
                 recognized_str = self._parse_docling_output(api_response, lbl, img)
 
-                # Skip malformed results
+                # skip malformed results
                 if recognized_str == "MALFORMED_FORMULA" or not recognized_str:
                     _log.warning(f"Snippet {snippet_id} produced malformed or empty output. Skipping.")
                     continue
 
-                # Assign recognized text to item
+                # assign recognized text to item
                 if lbl == "code" and isinstance(item, CodeItem):
-                    # Extract language tag if present
+                    # extract language tag if present
                     recognized_str, code_language = self._extract_code_language(recognized_str)
                     item.code_language = self._get_code_language_enum(code_language)
                     item.text = recognized_str

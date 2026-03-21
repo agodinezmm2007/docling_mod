@@ -291,7 +291,7 @@ def clean_content_stream(input_path, output_path=None):
                 logger.debug("clean_content_stream: page %d of %s: removed %d text operators",
                              page_num + 1, input_path.name, page_removed)
 
-            # Write filtered content back as a single stream
+            # write filtered content back as a single stream
             try:
                 new_content = pikepdf.unparse_content_stream(filtered_ops)
                 page.Contents = pdf.make_stream(new_content)
@@ -426,7 +426,7 @@ def _batch_worker(args):
             result["cleaning"]["content_stream"] = cs_stats
         except Exception as e:
             logger.error("CLEAN %s: content stream cleaning failed: %s", pdf_path.name, e)
-            # If content stream cleaning fails, copy original to output
+            # if content stream cleaning fails, copy original to output
             try:
                 import shutil
                 shutil.copy2(pdf_path, output_path)

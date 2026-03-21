@@ -1,10 +1,12 @@
 # Modified Docling (docling_mod)
 
+The code here is for testing and validation.
+
 Base versions: docling 2.62.0, docling_core 2.51.1, docling_ibm_models 3.10.2, docling_parse 4.7.1
 
 Modified fork of IBM's Docling library for batch processing of academic PDFs. Details in the [technical report](https://agodinezmm2007.github.io/project_portfolio/05-technical-report.html#stage-4-content-extraction-via-document-layout-analysis).
 
-# Glyphs
+## Glyphs
 
 this version for docling 2.62.0 does not modify docling_parse/pdf_resources_v2/glyphs/standard/glyphlist.dat like in the previous version. common missing glyphs in the 198 test PDFs are
 
@@ -39,12 +41,50 @@ GLYPH<N> tokens from unmapped character codes (found in MDPI, Copernicus, PeerJ,
 
 45 of 198 articles contain at least one GLYPH or /uni token. 22 have GLYPH<N> tokens (MDPI: 13, Copernicus: 5, PeerJ: 2, PLOS: 1, Elsevier: 1). 23 have /uni tokens (Elsevier: 8, BMJ: 5, Springer Nature: 2, Japan Epidemiological Association: 2, PLOS: 3, others: 3). No article has both types.
 
-The code here is for testing and validation.
+To attempt to resolve glyphs I attempt post processing instead of adding missing glyphs to source .dat files. To first detect glyphs I run `scripts/glyph_unifb_analysis.py` which detects instances of `uniFB` and `GLYPH<N>` in the FullText/text items on PagesJson columns. then ones theyre identified I attempt to resolve them using `scripts/fix_uni_tokens.py`. resolving `GLYPH<N>` requires to first map the `GLYPH<N>`s to their corresponding `uniFB` symbols
+
+
 
 ## Purpose
 
+The primary purpose of this repository is to maximize throughput for batch PDF extraction. Using `scripts/docling_extract_formulas_mp_multi_provenance.py` on 2 GPUs with 10 workers, 198 academic PDFs (3,773 pages total) were fully processed in 6 minutes flat. That includes layout detection, formula/code extraction, table structure, markdown export, and page-level provenance assembly.
+
+| Metric | Value |
+| --- | --- |
+| Wall clock time | 6.0 min |
+| PDFs processed | 198 (0 errors) |
+| Total pages | 3,773 |
+| Avg time per PDF | 16.5s |
+| Median time per PDF | 10.2s |
+| Avg time per page | 0.86s |
+| Throughput | 32.9 PDFs/min, 627.5 pages/min |
+
+Hardware is as follows:
+
+- 512 GB DDR4 ECC RDIMM ram
+- Threadripper pro 5955wx
+- GPU 0: NVIDIA RTX PRO 60000 max-q (96 gb)
+- GPU 2: NVIDIA RTX A6000 (48 gb)
+- GPU 3: NVIDIA RTX PRO 60000 max-q (96 gb)
+- GPU 4: NVIDIA RTX A6000 (48 gb)
+
+Minimum hardware is two GPUs: one for layout detection / table structure / formula extraction, the other running the vLLM docker container for code formula inference via the granite-vision API.
+
+5 workers per A6000 (48 GB) is the maximum before CUDA OOM. Larger GPUs can run more.
+
+### Worker/thread counts in `docling_extract_formulas_mp_multi_provenance.py`
+
+| Setting | Location | Default | Purpose |
+|---------|----------|---------|---------|
+| `max_workers` | `do_docling_extraction()` / `__main__` | `len(GPU_IDS) * 5` | Number of parallel PDF conversion processes across GPUs |
+| `num_threads` | `AcceleratorOptions` in `init_pipeline()` | `6` | CPU threads per worker for model inference (layout, table structure) |
+| `POST_PROCESS_WORKERS` | Module constant | `12` | Threads for table export and page metadata building within each PDF |
+| `ThreadPoolExecutor` in table export | `extract_pdf_with_docling()` | `min(POST_PROCESS_WORKERS, num_tables)` | Capped to actual table count |
+
+### What this repository modifies
+
 - Multi-GPU parallelization via `ProcessPoolExecutor` with round-robin GPU assignment
-- Formula/code extraction rewritten to use a vLLM API endpoint serving `granite-vision-3.3-2b` (replaces the stock codeformula/smoldocling model).
+- Formula/code extraction rewritten to use a vLLM API endpoint serving `granite-vision-3.3-2b` (replaces the stock codeformula/smoldocling model)
 
 Docker command for granite-vision-3.3b-2b
 

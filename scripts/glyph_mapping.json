@@ -1,0 +1,138 @@
+{
+  "GLYPH<0>": {
+    "unicode": "U+2212",
+    "character": "−",
+    "name": "MINUS SIGN",
+    "publishers": ["Elsevier", "Copernicus (EGU)", "PeerJ"],
+    "occurrences": 743,
+    "evidence": "3.16 ( GLYPH<0> 0.52; 6.98) = CI lower bound"
+  },
+  "GLYPH<1>": {
+    "unicode": "U+2212",
+    "character": "−",
+    "name": "MINUS SIGN",
+    "publishers": ["MDPI"],
+    "occurrences": 365,
+    "evidence": "GLYPH<1> 0.090 in Table 2 Ozone ME column = −0.090 in PDF"
+  },
+  "GLYPH<2>": {
+    "unicode": "U+00D7",
+    "character": "×",
+    "name": "MULTIPLICATION SIGN",
+    "publishers": ["MDPI", "Copernicus (EGU)"],
+    "occurrences": 25,
+    "evidence": "1° GLYPH<2> 1° = 1° × 1° resolution"
+  },
+  "GLYPH<3>": {
+    "unicode": "U+002A",
+    "character": "*",
+    "name": "ASTERISK",
+    "publishers": ["Copernicus (EGU)"],
+    "occurrences": 8,
+    "evidence": "PDF footnote: * From HTAP phase 1 (Dentener et al., 2010)."
+  },
+  "GLYPH<6>": {
+    "unicode": "U+00B1",
+    "character": "±",
+    "name": "PLUS-MINUS SIGN",
+    "publishers": ["Copernicus (EGU)"],
+    "occurrences": 60,
+    "evidence": "1000 GLYPH<6> 100 = 1000 ± 100"
+  },
+  "GLYPH<8>": {
+    "unicode": "U+00B1",
+    "character": "±",
+    "name": "PLUS-MINUS SIGN",
+    "publishers": ["MDPI"],
+    "occurrences": 28,
+    "evidence": "41.8 GLYPH<8> 25.7 = 41.8 ± 25.7"
+  },
+  "GLYPH<11>": {
+    "unicode": "U+FB00",
+    "character": "ﬀ",
+    "name": "LATIN SMALL LIGATURE FF",
+    "publishers": ["MDPI"],
+    "occurrences": 47,
+    "evidence": "e GLYPH<11> ect = effect"
+  },
+  "GLYPH<12>": {
+    "unicode": "U+03B2",
+    "character": "β",
+    "name": "GREEK SMALL LETTER BETA",
+    "publishers": ["MDPI"],
+    "occurrences": 3,
+    "evidence": "GLYPH<12> 0 (Intercept) = β₀ in Equation (5)"
+  },
+  "GLYPH<13>": {
+    "unicode": "U+25CB",
+    "character": "◯",
+    "name": "WHITE CIRCLE",
+    "publishers": ["Copernicus (EGU)"],
+    "occurrences": 8,
+    "evidence": "Table 1 caption: ◯: effect via thermodynamic equilibration"
+  },
+  "GLYPH<14>": {
+    "unicode": "U+00B0",
+    "character": "°",
+    "name": "DEGREE SIGN",
+    "publishers": ["MDPI", "Copernicus (EGU)", "PeerJ"],
+    "occurrences": 108,
+    "evidence": "Temperature ( GLYPH<14> C) = °C"
+  },
+  "GLYPH<15>": {
+    "unicode": "U+2022",
+    "character": "•",
+    "name": "BULLET",
+    "publishers": ["Copernicus (EGU)"],
+    "occurrences": 22,
+    "evidence": "Table 1 caption: •: direct emission or immediate product"
+  },
+  "GLYPH<21>": {
+    "unicode": "U+2265",
+    "character": "≥",
+    "name": "GREATER-THAN OR EQUAL TO",
+    "publishers": ["MDPI", "PLOS", "PeerJ"],
+    "occurrences": 147,
+    "evidence": "GLYPH<21> 75 years = ≥75 years"
+  },
+  "GLYPH<24>": {
+    "unicode": "U+2264",
+    "character": "≤",
+    "name": "LESS-THAN OR EQUAL TO",
+    "publishers": ["Copernicus (EGU)"],
+    "occurrences": 14,
+    "evidence": "GLYPH<24> 7 : 3µgm GLYPH<0> 3 = ≤7.3 µg m⁻³"
+  },
+  "GLYPH<25>": {
+    "unicode": "U+2640",
+    "character": "♀",
+    "name": "FEMALE SIGN",
+    "publishers": ["MDPI"],
+    "occurrences": 63,
+    "evidence": "Table footnote: GLYPH<25> : female"
+  },
+  "GLYPH<26>": {
+    "unicode": "U+2642",
+    "character": "♂",
+    "name": "MALE SIGN",
+    "publishers": ["MDPI"],
+    "occurrences": 63,
+    "evidence": "Table footnote: GLYPH<26> : male"
+  },
+  "GLYPH<229>": {
+    "unicode": "U+2211",
+    "character": "∑",
+    "name": "N-ARY SUMMATION",
+    "publishers": ["MDPI"],
+    "occurrences": 1,
+    "evidence": "concentrations expressed by ∑ 84 VOCs"
+  },
+  "GLYPH<c=0,font=/DejaVuMathTeXGyre-Regular>": {
+    "unicode": "U+000A",
+    "character": ", ",
+    "name": "LINE SEPARATOR",
+    "publishers": ["Research Square (preprint)"],
+    "occurrences": 10,
+    "evidence": "Line breaks within table cells rendered as square boxes in PDF"
+  }
+}
