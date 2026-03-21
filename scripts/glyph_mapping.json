@@ -3,7 +3,11 @@
     "unicode": "U+2212",
     "character": "−",
     "name": "MINUS SIGN",
-    "publishers": ["Elsevier", "Copernicus (EGU)", "PeerJ"],
+    "publishers": [
+      "Elsevier",
+      "Copernicus (EGU)",
+      "PeerJ"
+    ],
     "occurrences": 743,
     "evidence": "3.16 ( GLYPH<0> 0.52; 6.98) = CI lower bound"
   },
@@ -11,79 +15,685 @@
     "unicode": "U+2212",
     "character": "−",
     "name": "MINUS SIGN",
-    "publishers": ["MDPI"],
+    "publishers": [
+      "MDPI"
+    ],
     "occurrences": 365,
-    "evidence": "GLYPH<1> 0.090 in Table 2 Ozone ME column = −0.090 in PDF"
+    "evidence": "GLYPH<1> 0.090 in Table 2 Ozone ME column = −0.090 in PDF",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 1,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        45
+      ]
+    },
+    "review_notes": "Manual page review of the page 45 header 'Peptides' supports GLYPH<1> -> 'd' in this exact 10.1128 occurrence. The previously stored minus-sign evidence has not been manually re-reviewed in this pass.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Peptides",
+        "character": "d",
+        "unicode": "U+0064",
+        "name": "LATIN SMALL LETTER D"
+      }
+    ]
   },
   "GLYPH<2>": {
     "unicode": "U+00D7",
     "character": "×",
     "name": "MULTIPLICATION SIGN",
-    "publishers": ["MDPI", "Copernicus (EGU)"],
+    "publishers": [
+      "MDPI",
+      "Copernicus (EGU)"
+    ],
     "occurrences": 25,
-    "evidence": "1° GLYPH<2> 1° = 1° × 1° resolution"
+    "evidence": "1° GLYPH<2> 1° = 1° × 1° resolution",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 2,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        36,
+        45
+      ]
+    },
+    "review_notes": "Manual page review of exact anchors conflicts: page 36 'Nationally' supports GLYPH<2> -> 'n', while page 45 'Peptides' supports GLYPH<2> -> 'p'. The previously stored multiplication-sign evidence has not been manually re-reviewed in this pass.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Nationally",
+        "character": "n",
+        "unicode": "U+006E",
+        "name": "LATIN SMALL LETTER N"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Peptides",
+        "character": "p",
+        "unicode": "U+0070",
+        "name": "LATIN SMALL LETTER P"
+      }
+    ]
   },
   "GLYPH<3>": {
     "unicode": "U+002A",
     "character": "*",
     "name": "ASTERISK",
-    "publishers": ["Copernicus (EGU)"],
+    "publishers": [
+      "Copernicus (EGU)"
+    ],
     "occurrences": 8,
-    "evidence": "PDF footnote: * From HTAP phase 1 (Dentener et al., 2010)."
+    "evidence": "PDF footnote: * From HTAP phase 1 (Dentener et al., 2010).",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 1,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        21
+      ]
+    },
+    "review_notes": "Manual page review of the page 21 label 'Rapid diagnostics' supports GLYPH<3> -> 'd' in this exact 10.1128 occurrence. The previously stored asterisk evidence has not been manually re-reviewed in this pass.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 21,
+        "visible_text": "Rapid diagnostics",
+        "character": "d",
+        "unicode": "U+0064",
+        "name": "LATIN SMALL LETTER D"
+      }
+    ]
+  },
+  "GLYPH<4>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 4,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        12,
+        45,
+        51
+      ]
+    },
+    "review_notes": "Exact 10.1128 anchors conflict: page 12 'Drugs' supports GLYPH<4> -> 'u', page 51 'Quantity' supports GLYPH<4> -> 'y', and page 45 'Probiotics' supports GLYPH<4> -> 'r'.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 12,
+        "visible_text": "Drugs",
+        "character": "u",
+        "unicode": "U+0075",
+        "name": "LATIN SMALL LETTER U"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 51,
+        "visible_text": "Quantity",
+        "character": "y",
+        "unicode": "U+0079",
+        "name": "LATIN SMALL LETTER Y"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Probiotics",
+        "character": "r",
+        "unicode": "U+0072",
+        "name": "LATIN SMALL LETTER R"
+      }
+    ]
+  },
+  "GLYPH<5>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 4,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        45,
+        51
+      ]
+    },
+    "review_notes": "Manual page review of exact 10.1128 anchors conflicts: page 51 'Quantity' supports GLYPH<5> -> 'i', while the page 45 description start 'Non-mammalian' supports GLYPH<5> -> 'a'.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Non-mammalian",
+        "character": "a",
+        "unicode": "U+0061",
+        "name": "LATIN SMALL LETTER A"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 51,
+        "visible_text": "Quantity",
+        "character": "i",
+        "unicode": "U+0069",
+        "name": "LATIN SMALL LETTER I"
+      }
+    ]
   },
   "GLYPH<6>": {
     "unicode": "U+00B1",
     "character": "±",
     "name": "PLUS-MINUS SIGN",
-    "publishers": ["Copernicus (EGU)"],
+    "publishers": [
+      "Copernicus (EGU)"
+    ],
     "occurrences": 60,
-    "evidence": "1000 GLYPH<6> 100 = 1000 ± 100"
+    "evidence": "1000 GLYPH<6> 100 = 1000 ± 100",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 3,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        21,
+        36,
+        51
+      ]
+    },
+    "review_notes": "Exact 10.1128 anchors conflict: page 21 'Quantity' supports GLYPH<6> -> 'y', page 36 'Nationally' supports GLYPH<6> -> 'i', and page 51 'Quantity' supports GLYPH<6> -> 't'. The previously stored ± evidence has not been manually re-reviewed in this pass.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 21,
+        "visible_text": "Quantity",
+        "character": "y",
+        "unicode": "U+0079",
+        "name": "LATIN SMALL LETTER Y"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Nationally",
+        "character": "i",
+        "unicode": "U+0069",
+        "name": "LATIN SMALL LETTER I"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 51,
+        "visible_text": "Quantity",
+        "character": "t",
+        "unicode": "U+0074",
+        "name": "LATIN SMALL LETTER T"
+      }
+    ]
+  },
+  "GLYPH<7>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 4,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        12,
+        21,
+        45,
+        51
+      ]
+    },
+    "review_notes": "Exact 10.1128 anchors conflict: page 21 'Quantity' supports GLYPH<7> -> 'i', page 51 'Quantity' supports GLYPH<7> -> 'n', page 12 'Drugs' supports GLYPH<7> -> 'g', and the page 45 description start 'Non-mammalian' also supports GLYPH<7> -> 'n'.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 21,
+        "visible_text": "Quantity",
+        "character": "i",
+        "unicode": "U+0069",
+        "name": "LATIN SMALL LETTER I"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 51,
+        "visible_text": "Quantity",
+        "character": "n",
+        "unicode": "U+006E",
+        "name": "LATIN SMALL LETTER N"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 12,
+        "visible_text": "Drugs",
+        "character": "g",
+        "unicode": "U+0067",
+        "name": "LATIN SMALL LETTER G"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Non-mammalian",
+        "character": "n",
+        "unicode": "U+006E",
+        "name": "LATIN SMALL LETTER N"
+      }
+    ]
   },
   "GLYPH<8>": {
     "unicode": "U+00B1",
     "character": "±",
     "name": "PLUS-MINUS SIGN",
-    "publishers": ["MDPI"],
+    "publishers": [
+      "MDPI"
+    ],
     "occurrences": 28,
-    "evidence": "41.8 GLYPH<8> 25.7 = 41.8 ± 25.7"
+    "evidence": "41.8 GLYPH<8> 25.7 = 41.8 ± 25.7",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 3,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        21,
+        45,
+        51
+      ]
+    },
+    "review_notes": "Exact 10.1128 anchors conflict: page 21 'Quantity' supports GLYPH<8> -> 't', page 51 'Quantity' supports GLYPH<8> -> 'a', and page 45 'Probiotics' supports GLYPH<8> -> 'o'. The previously stored ± evidence has not been manually re-reviewed in this pass.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 21,
+        "visible_text": "Quantity",
+        "character": "t",
+        "unicode": "U+0074",
+        "name": "LATIN SMALL LETTER T"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 51,
+        "visible_text": "Quantity",
+        "character": "a",
+        "unicode": "U+0061",
+        "name": "LATIN SMALL LETTER A"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Probiotics",
+        "character": "o",
+        "unicode": "U+006F",
+        "name": "LATIN SMALL LETTER O"
+      }
+    ]
+  },
+  "GLYPH<9>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 5,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        21,
+        36,
+        45,
+        51
+      ]
+    },
+    "review_notes": "Exact 10.1128 anchors conflict: page 21 'Quantity' supports GLYPH<9> -> 'n', page 51 'Quantity' supports GLYPH<9> -> 'u', page 36 'Globally' supports GLYPH<9> -> 'y', and page 45 'Probiotics' and 'Peptides' support GLYPH<9> -> 'i'.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 21,
+        "visible_text": "Quantity",
+        "character": "n",
+        "unicode": "U+006E",
+        "name": "LATIN SMALL LETTER N"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 51,
+        "visible_text": "Quantity",
+        "character": "u",
+        "unicode": "U+0075",
+        "name": "LATIN SMALL LETTER U"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Globally",
+        "character": "y",
+        "unicode": "U+0079",
+        "name": "LATIN SMALL LETTER Y"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Probiotics",
+        "character": "i",
+        "unicode": "U+0069",
+        "name": "LATIN SMALL LETTER I"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Peptides",
+        "character": "i",
+        "unicode": "U+0069",
+        "name": "LATIN SMALL LETTER I"
+      }
+    ]
+  },
+  "GLYPH<10>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 5,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        21,
+        36,
+        45,
+        51
+      ]
+    },
+    "review_notes": "Exact 10.1128 anchors conflict: page 21 'Quantity' and page 36 'Globally' support GLYPH<10> -> 'a', page 51 'Quantity' supports GLYPH<10> -> 'Q', and page 45 'Probiotics' and 'Peptides' support GLYPH<10> -> 't'.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 21,
+        "visible_text": "Quantity",
+        "character": "a",
+        "unicode": "U+0061",
+        "name": "LATIN SMALL LETTER A"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Globally",
+        "character": "a",
+        "unicode": "U+0061",
+        "name": "LATIN SMALL LETTER A"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 51,
+        "visible_text": "Quantity",
+        "character": "Q",
+        "unicode": "U+0051",
+        "name": "LATIN CAPITAL LETTER Q"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Probiotics",
+        "character": "t",
+        "unicode": "U+0074",
+        "name": "LATIN SMALL LETTER T"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Peptides",
+        "character": "t",
+        "unicode": "U+0074",
+        "name": "LATIN SMALL LETTER T"
+      }
+    ]
   },
   "GLYPH<11>": {
     "unicode": "U+FB00",
     "character": "ﬀ",
     "name": "LATIN SMALL LIGATURE FF",
-    "publishers": ["MDPI"],
+    "publishers": [
+      "MDPI"
+    ],
     "occurrences": 47,
-    "evidence": "e GLYPH<11> ect = effect"
+    "evidence": "e GLYPH<11> ect = effect",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 3,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        21,
+        36,
+        45
+      ]
+    },
+    "review_notes": "Exact 10.1128 anchors conflict: page 21 'Quantity' supports GLYPH<11> -> 'u', page 36 'Globally' supports GLYPH<11> -> 'b', and page 45 'Probiotics' supports GLYPH<11> -> 'c'. The previously stored ff-ligature evidence has not been manually re-reviewed in this pass.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 21,
+        "visible_text": "Quantity",
+        "character": "u",
+        "unicode": "U+0075",
+        "name": "LATIN SMALL LETTER U"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Globally",
+        "character": "b",
+        "unicode": "U+0062",
+        "name": "LATIN SMALL LETTER B"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Probiotics",
+        "character": "c",
+        "unicode": "U+0063",
+        "name": "LATIN SMALL LETTER C"
+      }
+    ]
   },
   "GLYPH<12>": {
     "unicode": "U+03B2",
     "character": "β",
     "name": "GREEK SMALL LETTER BETA",
-    "publishers": ["MDPI"],
+    "publishers": [
+      "MDPI"
+    ],
     "occurrences": 3,
-    "evidence": "GLYPH<12> 0 (Intercept) = β₀ in Equation (5)"
+    "evidence": "GLYPH<12> 0 (Intercept) = β₀ in Equation (5)",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 2,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        21,
+        36
+      ]
+    },
+    "review_notes": "Exact 10.1128 anchors conflict: page 21 'Quantity' supports GLYPH<12> -> 'Q', while page 36 'Globally' supports GLYPH<12> -> 'o'. The previously stored beta evidence has not been manually re-reviewed in this pass.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 21,
+        "visible_text": "Quantity",
+        "character": "Q",
+        "unicode": "U+0051",
+        "name": "LATIN CAPITAL LETTER Q"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Globally",
+        "character": "o",
+        "unicode": "U+006F",
+        "name": "LATIN SMALL LETTER O"
+      }
+    ]
   },
   "GLYPH<13>": {
     "unicode": "U+25CB",
     "character": "◯",
     "name": "WHITE CIRCLE",
-    "publishers": ["Copernicus (EGU)"],
+    "publishers": [
+      "Copernicus (EGU)"
+    ],
     "occurrences": 8,
-    "evidence": "Table 1 caption: ◯: effect via thermodynamic equilibration"
+    "evidence": "Table 1 caption: ◯: effect via thermodynamic equilibration",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 4,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        36,
+        45
+      ]
+    },
+    "review_notes": "Manual page review of exact anchors conflicts: the page 36 labels 'Globally', 'Nationally', and 'Locally' support GLYPH<13> -> 'l', while the page 45 header 'Peptides' supports GLYPH<13> -> 'e'. The previously stored white-circle evidence has not been manually re-reviewed in this pass.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Globally",
+        "character": "l",
+        "unicode": "U+006C",
+        "name": "LATIN SMALL LETTER L"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Nationally",
+        "character": "l",
+        "unicode": "U+006C",
+        "name": "LATIN SMALL LETTER L"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Locally",
+        "character": "l",
+        "unicode": "U+006C",
+        "name": "LATIN SMALL LETTER L"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Peptides",
+        "character": "e",
+        "unicode": "U+0065",
+        "name": "LATIN SMALL LETTER E"
+      }
+    ]
   },
   "GLYPH<14>": {
     "unicode": "U+00B0",
     "character": "°",
     "name": "DEGREE SIGN",
-    "publishers": ["MDPI", "Copernicus (EGU)", "PeerJ"],
+    "publishers": [
+      "MDPI",
+      "Copernicus (EGU)",
+      "PeerJ"
+    ],
     "occurrences": 108,
-    "evidence": "Temperature ( GLYPH<14> C) = °C"
+    "evidence": "Temperature ( GLYPH<14> C) = °C",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 3,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        36,
+        45
+      ]
+    },
+    "review_notes": "Manual page review of exact anchors conflicts: page 36 'Globally' supports GLYPH<14> -> 'G', while the page 45 headers 'Probiotics' and 'Peptides' support GLYPH<14> -> 's'. The previously stored degree-sign evidence has not been manually re-reviewed in this pass.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Globally",
+        "character": "G",
+        "unicode": "U+0047",
+        "name": "LATIN CAPITAL LETTER G"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Probiotics",
+        "character": "s",
+        "unicode": "U+0073",
+        "name": "LATIN SMALL LETTER S"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Peptides",
+        "character": "s",
+        "unicode": "U+0073",
+        "name": "LATIN SMALL LETTER S"
+      }
+    ]
+  },
+  "GLYPH<19>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "review_status": "partially_confirmed",
+    "reviewed_occurrence_count": 1,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        36
+      ]
+    },
+    "review_notes": "Manual page review of the page 36 label 'Nationally' supports GLYPH<19> -> 'N' in this exact 10.1128 occurrence.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Nationally",
+        "character": "N",
+        "unicode": "U+004E",
+        "name": "LATIN CAPITAL LETTER N"
+      }
+    ]
   },
   "GLYPH<15>": {
     "unicode": "U+2022",
     "character": "•",
     "name": "BULLET",
-    "publishers": ["Copernicus (EGU)"],
+    "publishers": [
+      "Copernicus (EGU)"
+    ],
     "occurrences": 22,
     "evidence": "Table 1 caption: •: direct emission or immediate product"
   },
@@ -91,15 +701,42 @@
     "unicode": "U+2265",
     "character": "≥",
     "name": "GREATER-THAN OR EQUAL TO",
-    "publishers": ["MDPI", "PLOS", "PeerJ"],
+    "publishers": [
+      "MDPI",
+      "PLOS",
+      "PeerJ"
+    ],
     "occurrences": 147,
-    "evidence": "GLYPH<21> 75 years = ≥75 years"
+    "evidence": "GLYPH<21> 75 years = ≥75 years",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 1,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        36
+      ]
+    },
+    "review_notes": "Manual page review of the page 36 label 'Locally' supports GLYPH<21> -> 'L' in this exact 10.1128 occurrence. The previously stored ≥ evidence has not been manually re-reviewed in this pass.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Locally",
+        "character": "L",
+        "unicode": "U+004C",
+        "name": "LATIN CAPITAL LETTER L"
+      }
+    ]
   },
   "GLYPH<24>": {
     "unicode": "U+2264",
     "character": "≤",
     "name": "LESS-THAN OR EQUAL TO",
-    "publishers": ["Copernicus (EGU)"],
+    "publishers": [
+      "Copernicus (EGU)"
+    ],
     "occurrences": 14,
     "evidence": "GLYPH<24> 7 : 3µgm GLYPH<0> 3 = ≤7.3 µg m⁻³"
   },
@@ -107,7 +744,9 @@
     "unicode": "U+2640",
     "character": "♀",
     "name": "FEMALE SIGN",
-    "publishers": ["MDPI"],
+    "publishers": [
+      "MDPI"
+    ],
     "occurrences": 63,
     "evidence": "Table footnote: GLYPH<25> : female"
   },
@@ -115,24 +754,524 @@
     "unicode": "U+2642",
     "character": "♂",
     "name": "MALE SIGN",
-    "publishers": ["MDPI"],
+    "publishers": [
+      "MDPI"
+    ],
     "occurrences": 63,
-    "evidence": "Table footnote: GLYPH<26> : male"
+    "evidence": "Table footnote: GLYPH<26> : male",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 1,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        45
+      ]
+    },
+    "review_notes": "Manual page review of the page 45 description start 'Non-mammalian' supports GLYPH<26> -> 'N' in this exact 10.1128 occurrence. The previously stored male-sign evidence has not been manually re-reviewed in this pass.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Non-mammalian",
+        "character": "N",
+        "unicode": "U+004E",
+        "name": "LATIN CAPITAL LETTER N"
+      }
+    ]
   },
   "GLYPH<229>": {
     "unicode": "U+2211",
     "character": "∑",
     "name": "N-ARY SUMMATION",
-    "publishers": ["MDPI"],
+    "publishers": [
+      "MDPI"
+    ],
     "occurrences": 1,
     "evidence": "concentrations expressed by ∑ 84 VOCs"
+  },
+  "GLYPH<22>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "publishers": [
+      "PeerJ",
+      "ASM (Review on Antimicrobial Resistance infographic)"
+    ],
+    "occurrences": 104,
+    "evidence": "PeerJ pages 4-5 visibly show µL/µl contexts (for example 1.5 µL/mL and 20 µl samples). Manual review of the 10.1128 infographic pages 12, 16, 21, 25, 36, 41, 45, 51, 56, and 64 did not establish the same token as a global µ mapping. No corpus-wide mapping is recorded.",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 10,
+    "reviewed_files": [
+      "10.7717_peerj.11933_2710.pdf",
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.7717_peerj.11933_2710.pdf": [
+        4,
+        5
+      ],
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        12,
+        16,
+        21,
+        25,
+        36,
+        41,
+        45,
+        51,
+        56,
+        64
+      ]
+    },
+    "review_notes": "Manual review confirms a real conflict. The PeerJ paper uses GLYPH<22> as MICRO SIGN in µL/µl contexts, while the 10.1128 infographic page 45 headers 'Probiotics' and 'Peptides' show the same token as capital P. No single global mapping is justified.",
+    "scoped_observations": [
+      {
+        "file": "10.7717_peerj.11933_2710.pdf",
+        "pages": [
+          4,
+          5
+        ],
+        "unicode": "U+00B5",
+        "character": "µ",
+        "name": "MICRO SIGN",
+        "occurrences": 8,
+        "note": "Visible µL/µl units in normal prose."
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Probiotics",
+        "character": "P",
+        "unicode": "U+0050",
+        "name": "LATIN CAPITAL LETTER P"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Peptides",
+        "character": "P",
+        "unicode": "U+0050",
+        "name": "LATIN CAPITAL LETTER P"
+      }
+    ]
+  },
+  "GLYPH<27>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "review_status": "partially_confirmed",
+    "reviewed_occurrence_count": 1,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        21
+      ]
+    },
+    "review_notes": "Manual page review of the page 21 label 'Rapid diagnostics' supports GLYPH<27> -> 'R' in this exact 10.1128 occurrence.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 21,
+        "visible_text": "Rapid diagnostics",
+        "character": "R",
+        "unicode": "U+0052",
+        "name": "LATIN CAPITAL LETTER R"
+      }
+    ]
+  },
+  "GLYPH<31>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "publishers": [
+      "MDPI",
+      "Nature Portfolio"
+    ],
+    "occurrences": 14,
+    "evidence": "Manual PDF review confirms two different values. In the MDPI files, the token is quote/apostrophe-like: test’s, O’Reilly, 5’-coding, and QPsor’s. In Nature Water page 1, ArticGLYPH<31>e is visibly Article, so the token is lowercase l there. No single global mapping is recorded.",
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 14,
+    "reviewed_files": [
+      "10.1038_s44221-023-00033-4_786.pdf",
+      "10.3390_bios14030115_564.pdf",
+      "10.3390_ijerph22010097_187.pdf",
+      "10.3390_ijms25158071_2323.pdf",
+      "10.3390_pathogens13060435_2341.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1038_s44221-023-00033-4_786.pdf": [
+        1
+      ],
+      "10.3390_bios14030115_564.pdf": [
+        4,
+        7,
+        8,
+        9
+      ],
+      "10.3390_ijerph22010097_187.pdf": [
+        8
+      ],
+      "10.3390_ijms25158071_2323.pdf": [
+        4,
+        7,
+        8
+      ],
+      "10.3390_pathogens13060435_2341.pdf": [
+        3
+      ]
+    },
+    "review_notes": "Every file containing GLYPH<31> was manually inspected. MDPI occurrences are quote/apostrophe-like; the Nature Water occurrence is lowercase l in the word Article.",
+    "scoped_observations": [
+      {
+        "files": [
+          "10.3390_bios14030115_564.pdf",
+          "10.3390_ijerph22010097_187.pdf",
+          "10.3390_ijms25158071_2323.pdf",
+          "10.3390_pathogens13060435_2341.pdf"
+        ],
+        "pages": [
+          3,
+          4,
+          7,
+          8,
+          9
+        ],
+        "unicode": "U+2019",
+        "character": "’",
+        "name": "RIGHT SINGLE QUOTATION MARK",
+        "occurrences": 13,
+        "note": "Visible in O’Reilly, test’s, 5’-coding, and similar MDPI contexts."
+      },
+      {
+        "files": [
+          "10.1038_s44221-023-00033-4_786.pdf"
+        ],
+        "pages": [
+          1
+        ],
+        "unicode": "U+006C",
+        "character": "l",
+        "name": "LATIN SMALL LETTER L",
+        "occurrences": 1,
+        "note": "ArticGLYPH<31>e is visibly Article in Nature Water page 1."
+      }
+    ]
+  },
+  "GLYPH<138>": {
+    "unicode": "U+0076",
+    "character": "v",
+    "name": "LATIN SMALL LETTER V",
+    "publishers": [
+      "Cambridge University Press"
+    ],
+    "occurrences": 4,
+    "evidence": "Reco GLYPH<138> ery of polio GLYPH<138> irus = Recovery of poliovirus; Entero GLYPH<138> irus = Enterovirus. Font encoding maps glyph 138 to lowercase v.",
+    "review_status": "confirmed",
+    "reviewed_occurrence_count": 4,
+    "reviewed_files": [
+      "10.1017_s0950268801005787_969.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1017_s0950268801005787_969.pdf": [
+        1,
+        3,
+        5
+      ]
+    },
+    "review_notes": "Manually reviewed every distinct page containing the token. Visible Enterovirus and Recovery contexts support lowercase v."
+  },
+  "GLYPH<141>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 2,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        12,
+        45
+      ]
+    },
+    "review_notes": "Manual page review of exact 10.1128 anchors conflicts: the page 12 right-column label 'Drugs' supports GLYPH<141> -> 's', while the page 45 description start 'Non-mammalian' supports GLYPH<141> -> 'm'.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 12,
+        "visible_text": "Drugs",
+        "character": "s",
+        "unicode": "U+0073",
+        "name": "LATIN SMALL LETTER S"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Non-mammalian",
+        "character": "m",
+        "unicode": "U+006D",
+        "name": "LATIN SMALL LETTER M"
+      }
+    ]
+  },
+  "GLYPH<143>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "review_status": "partially_confirmed",
+    "reviewed_occurrence_count": 1,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        36
+      ]
+    },
+    "review_notes": "Manual page review of the page 36 label 'Nationally' supports GLYPH<143> -> 't' in this exact 10.1128 occurrence.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Nationally",
+        "character": "t",
+        "unicode": "U+0074",
+        "name": "LATIN SMALL LETTER T"
+      }
+    ]
+  },
+  "GLYPH<144>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "review_status": "partially_confirmed",
+    "reviewed_occurrence_count": 1,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        21
+      ]
+    },
+    "review_notes": "Manual page review of the page 21 label 'Rapid diagnostics' supports GLYPH<144> -> 's' in this exact 10.1128 occurrence.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 21,
+        "visible_text": "Rapid diagnostics",
+        "character": "s",
+        "unicode": "U+0073",
+        "name": "LATIN SMALL LETTER S"
+      }
+    ]
+  },
+  "GLYPH<151>": {
+    "unicode": "U+2122",
+    "character": "™",
+    "name": "TRADE MARK SIGN",
+    "publishers": [
+      "MDPI"
+    ],
+    "occurrences": 3,
+    "evidence": "Nalgene Rapid-flow GLYPH<151> 0.45 = Rapid-flow™ 0.45 (Viruses 2020 page 3); ATCC CCL-136 GLYPH<151> = CCL-136™ (Viruses 2019 page 4)",
+    "review_status": "confirmed",
+    "reviewed_occurrence_count": 3,
+    "reviewed_files": [
+      "10.3390_v11090775_923.pdf",
+      "10.3390_v12101144_955.pdf"
+    ],
+    "reviewed_pages": {
+      "10.3390_v11090775_923.pdf": [
+        4
+      ],
+      "10.3390_v12101144_955.pdf": [
+        3,
+        4
+      ]
+    },
+    "review_notes": "All distinct pages were manually reviewed. Visible Rapid-flow™, CCL-136™, and DreamTaq™ contexts support TRADE MARK SIGN."
+  },
+  "GLYPH<157>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "review_status": "conflict",
+    "reviewed_occurrence_count": 3,
+    "reviewed_files": [
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        21,
+        45,
+        36
+      ]
+    },
+    "review_notes": "Manual page review of exact 10.1128 anchors conflicts: page 36 'Locally' supports GLYPH<157> -> 'c', page 21 'Rapid diagnostics' supports GLYPH<157> -> 'o', and page 45 'Probiotics' supports GLYPH<157> -> 'b'.",
+    "scoped_observations": [
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 21,
+        "visible_text": "Rapid diagnostics",
+        "character": "o",
+        "unicode": "U+006F",
+        "name": "LATIN SMALL LETTER O"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 45,
+        "visible_text": "Probiotics",
+        "character": "b",
+        "unicode": "U+0062",
+        "name": "LATIN SMALL LETTER B"
+      },
+      {
+        "file": "10.1128_microbiolspec.mtbp-0016-2017_996.pdf",
+        "page": 36,
+        "visible_text": "Locally",
+        "character": "c",
+        "unicode": "U+0063",
+        "name": "LATIN SMALL LETTER C"
+      }
+    ]
+  },
+  "GLYPH<176>": {
+    "unicode": "U+00B0",
+    "character": "°",
+    "name": "DEGREE SIGN",
+    "publishers": [
+      "Cambridge University Press"
+    ],
+    "occurrences": 5,
+    "evidence": "kept frozen at fi 20 GLYPH<176> C = −20 °C (Cambridge 10.1017 page 2)",
+    "review_status": "confirmed",
+    "reviewed_occurrence_count": 5,
+    "reviewed_files": [
+      "10.1017_s0950268801005787_969.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1017_s0950268801005787_969.pdf": [
+        2,
+        3
+      ]
+    },
+    "review_notes": "All distinct pages were manually reviewed. Visible −20 °C, 4 °C, and 36 °C contexts support DEGREE SIGN."
+  },
+  "GLYPH<181>": {
+    "unicode": "U+221D",
+    "character": "∝",
+    "name": "PROPORTIONAL TO",
+    "publishers": [
+      "MDPI"
+    ],
+    "occurrences": 1,
+    "evidence": "mt GLYPH<181> dt = m_t ∝ d_t in equation text (Water 2022 page 6). Machine hint of µ (U+00B5) was incorrect.",
+    "review_status": "confirmed",
+    "reviewed_occurrence_count": 1,
+    "reviewed_files": [
+      "10.3390_w14182885_2621.pdf"
+    ],
+    "reviewed_pages": {
+      "10.3390_w14182885_2621.pdf": [
+        6
+      ]
+    },
+    "review_notes": "The equation on page 6 visibly shows proportionality, not micro sign."
+  },
+  "GLYPH<228>": {
+    "unicode": "U+00E4",
+    "character": "ä",
+    "name": "LATIN SMALL LETTER A WITH DIAERESIS",
+    "publishers": [
+      "PeerJ"
+    ],
+    "occurrences": 10,
+    "evidence": "Hokaj GLYPH<228> rvi et al. = Hokajärvi et al. (PeerJ page 2)",
+    "review_status": "confirmed",
+    "reviewed_occurrence_count": 10,
+    "reviewed_files": [
+      "10.7717_peerj.11933_2710.pdf"
+    ],
+    "reviewed_pages": {
+      "10.7717_peerj.11933_2710.pdf": [
+        2,
+        11,
+        12,
+        15
+      ]
+    },
+    "review_notes": "All distinct pages were manually reviewed. Visible Hokajärvi and Kankaanpää name spellings support LATIN SMALL LETTER A WITH DIAERESIS."
+  },
+  "GLYPH<246>": {
+    "unicode": "U+00F6",
+    "character": "ö",
+    "name": "LATIN SMALL LETTER O WITH DIAERESIS",
+    "publishers": [
+      "PeerJ"
+    ],
+    "occurrences": 1,
+    "evidence": "Rytk GLYPH<246> nen = Rytkönen (PeerJ page 15 references)",
+    "review_status": "confirmed",
+    "reviewed_occurrence_count": 1,
+    "reviewed_files": [
+      "10.7717_peerj.11933_2710.pdf"
+    ],
+    "reviewed_pages": {
+      "10.7717_peerj.11933_2710.pdf": [
+        15
+      ]
+    },
+    "review_notes": "PeerJ references page 15 visibly shows Rytkönen."
   },
   "GLYPH<c=0,font=/DejaVuMathTeXGyre-Regular>": {
     "unicode": "U+000A",
     "character": ", ",
     "name": "LINE SEPARATOR",
-    "publishers": ["Research Square (preprint)"],
+    "publishers": [
+      "Research Square (preprint)"
+    ],
     "occurrences": 10,
     "evidence": "Line breaks within table cells rendered as square boxes in PDF"
+  },
+  "GLYPH<28>": {
+    "unicode": null,
+    "character": null,
+    "name": null,
+    "publishers": [
+      "Nature Portfolio",
+      "ASM (Review on Antimicrobial Resistance infographic)"
+    ],
+    "occurrences": 200,
+    "evidence": "Manual review covered Nature Medicine page 5 and every distinct 10.1128 infographic page containing GLYPH<28> (12, 16, 21, 25, 36, 41, 45, 51, 56, 64). The token could not be resolved to a single visible character from the reviewed pages.",
+    "review_status": "unresolved",
+    "reviewed_occurrence_count": 200,
+    "reviewed_files": [
+      "10.1038_s41591-025-03501-4_1633.pdf",
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf"
+    ],
+    "reviewed_pages": {
+      "10.1038_s41591-025-03501-4_1633.pdf": [
+        5
+      ],
+      "10.1128_microbiolspec.mtbp-0016-2017_996.pdf": [
+        12,
+        16,
+        21,
+        25,
+        36,
+        41,
+        45,
+        51,
+        56,
+        64
+      ]
+    },
+    "review_notes": "The Nature Medicine occurrence is a tiny isolated mark near a chart and was not visually identifiable from page review. The 10.1128 infographic pages were all reviewed, but the token remains unresolved there as well."
   }
 }

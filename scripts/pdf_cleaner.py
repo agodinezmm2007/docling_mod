@@ -58,7 +58,7 @@ def _worker_init():
 # analysis
 # ---------------------------------------------------------------------------
 
-def analyze_spans(pdf_path, max_pages=5):
+def analyze_spans(pdf_path, max_pages=None):
     """
     PyMuPDF span-level analysis. Detects white text (color >= 0xF0F0F0)
     and tiny text (size < 1.0) by inspecting each text span's properties.
@@ -67,13 +67,14 @@ def analyze_spans(pdf_path, max_pages=5):
     """
     import fitz
 
-    logger.info("analyze_spans: %s (max_pages=%d)", pdf_path, max_pages)
+    logger.info("analyze_spans: %s (max_pages=%s)", pdf_path, max_pages if max_pages is not None else "all")
     doc = None
     try:
         doc = fitz.open(pdf_path)
         results = []
 
-        for page_num in range(min(max_pages, len(doc))):
+        num_pages = len(doc) if max_pages is None else min(max_pages, len(doc))
+        for page_num in range(num_pages):
             try:
                 page = doc[page_num]
                 text_dict = page.get_text("dict", flags=fitz.TEXTFLAGS_TEXT)
@@ -629,8 +630,8 @@ def main():
         help="Analysis method: spans (PyMuPDF) or stream (pikepdf). Default: spans",
     )
     p_analyze.add_argument(
-        "--max-pages", type=int, default=5,
-        help="Max pages to analyze (spans method only). Default: 5",
+        "--max-pages", type=int, default=None,
+        help="Max pages to analyze (spans method only). Default: all pages",
     )
 
     # -- clean --

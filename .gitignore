@@ -48,6 +48,8 @@ CLAUDE.md
 scripts/output/
 
 scripts/sample_pdfs_cleaned/
+scripts/big_test/
+
 
 scripts/smaple_pdfs/
 scripts/docling.txt
@@ -57,4 +59,23 @@ scripts/docling.txt
 plans/
 .claude/
 .vscode/
-comparisons/
+
+documentation/fix_uni_tokens_postmortem.md
+documentation/fix_unicode_v2_audit_2026-03-17_codex.md
+documentation/fix_unicode_v2_postmortem_2026-03-17.md
+documentation/audit_summary_claude.txt
+documentation/glyph_manual_review_log_2026-03-21.md
+documentation/glyph_review_queue_v2_audit_codex_2026-03-21.md
+documentation/postmortem_glyph_review_queue_20260321.md
+documentation/postmortem_glyph_review_queue_v2_20260321.md
+
+# Glyph review scripts
+scripts/glyph_review_queue.py
+scripts/bad_pdf/
+scripts/bad_pdf_cleaned/
+scripts/audit_compare_fixers.py
+scripts/fix_unicode_v2.py
+scripts/fix_unicode.py
+
+# Tests
+tests/

@@ -8,7 +8,9 @@ Modified fork of IBM's Docling library for batch processing of academic PDFs. De
 
 ## Glyphs
 
-this version for docling 2.62.0 does not modify docling_parse/pdf_resources_v2/glyphs/standard/glyphlist.dat like in the previous version. common missing glyphs in the 198 test PDFs are
+this version for docling 2.62.0 does not modify `docling_parse/pdf_resources_v2/glyphs/standard/glyphlist.dat` like in the previous version.
+
+Baseline inventory from the original 198 test PDFs from data/NEW_ETL_PDF:
 
 - /uniFB00 (ff ligature, 547 occurrences across 198 PDFs)
 - /uniFB01 (fi ligature, 1180 occurrences)
@@ -19,7 +21,7 @@ this version for docling 2.62.0 does not modify docling_parse/pdf_resources_v2/g
 - /uni262F (yin yang, 3 occurrences)
 - /uni202F (narrow no-break space, 1 occurrence)
 
-GLYPH<N> tokens from unmapped character codes (found in MDPI, Copernicus, PeerJ, PLOS, Elsevier PDFs):
+`GLYPH<N>` tokens from unmapped character codes in the 198-PDF set (found in MDPI, Copernicus, PeerJ, PLOS, Elsevier PDFs):
 
 - GLYPH<0>: 743 occurrences
 - GLYPH<1>: 365
@@ -40,6 +42,162 @@ GLYPH<N> tokens from unmapped character codes (found in MDPI, Copernicus, PeerJ,
 - GLYPH<229>: 1
 
 45 of 198 articles contain at least one GLYPH or /uni token. 22 have GLYPH<N> tokens (MDPI: 13, Copernicus: 5, PeerJ: 2, PLOS: 1, Elsevier: 1). 23 have /uni tokens (Elsevier: 8, BMJ: 5, Springer Nature: 2, Japan Epidemiological Association: 2, PLOS: 3, others: 3). No article has both types.
+
+inventory from test set with over 800 PDFs:
+
+unique `/uniFB` tokens in `scripts/output/scripts/big_test_output_glyph_hits_pages.json`:
+
+```text
+/uni011F   14
+/uni015F    5
+/uni016F    1
+/uni03F5    2
+/uni25CF   11
+/uni25FC    1
+/uni262F    3
+/uni29F9    3
+/uniF639    1
+/uniF63A    1
+/uniF63B    1
+/uniF63F    1
+/uniF643  294
+/uniF644  110
+/uniF645  261
+/uniF646    5
+/uniF647   15
+/uniF648   14
+/uniF649   11
+/uniF64A   19
+/uniF64B   33
+/uniF64C   42
+/uniF6DC    4
+/uniFB00  232
+/uniFB01 5841
+/uniFB02 1556
+/uniFB03   40
+/uniFB04   95
+```
+
+Exact unique `GLYPH<...>` tokens in `scripts/output/scripts/big_test_output_glyph_hits_pages.json`:
+
+```text
+GLYPH<0>                                 205
+GLYPH<10>                                146
+GLYPH<11>                                199
+GLYPH<12>                                115
+GLYPH<138>                                 4
+GLYPH<13>                                129
+GLYPH<141>                                52
+GLYPH<143>                                71
+GLYPH<144>                                34
+GLYPH<14>                                265
+GLYPH<151>                                 3
+GLYPH<157>                                35
+GLYPH<15>                                167
+GLYPH<16>                                 78
+GLYPH<176>                                 5
+GLYPH<17>                                 19
+GLYPH<181>                                 1
+GLYPH<18>                                 23
+GLYPH<19>                                 25
+GLYPH<1>                                  58
+GLYPH<20>                                 65
+GLYPH<21>                                 67
+GLYPH<228>                                10
+GLYPH<229>                                 1
+GLYPH<22>                                104
+GLYPH<23>                                201
+GLYPH<246>                                 1
+GLYPH<24>                                111
+GLYPH<25>                                 51
+GLYPH<26>                                 91
+GLYPH<27>                                129
+GLYPH<28>                                200
+GLYPH<29>                                 98
+GLYPH<2>                                 128
+GLYPH<31>                                 14
+GLYPH<3>                                  23
+GLYPH<4>                                  93
+GLYPH<5>                                 122
+GLYPH<6>                                 164
+GLYPH<7>                                 116
+GLYPH<8>                                 109
+GLYPH<9>                                 121
+GLYPH<c=10,font=/MKCMFE+TimesNewRoman>     2
+GLYPH<c=11,font=/MKCMFE+TimesNewRoman>    11
+GLYPH<c=11,font=/MKCMIE+Times>             3
+GLYPH<c=11,font=/WNMYMG+ArialMT>           8
+GLYPH<c=12,font=/MKCMFE+TimesNewRoman>    11
+GLYPH<c=12,font=/MKCMIE+Times>             3
+GLYPH<c=12,font=/WNMYMG+ArialMT>           8
+GLYPH<c=13,font=/WNMYMG+ArialMT>           4
+GLYPH<c=15,font=/MKCMFE+TimesNewRoman>    24
+GLYPH<c=15,font=/MKCMIE+Times>             1
+GLYPH<c=15,font=/WNMYMG+ArialMT>          15
+GLYPH<c=16,font=/MKCMFE+TimesNewRoman>     7
+GLYPH<c=16,font=/MKCMIE+Times>             6
+GLYPH<c=16,font=/WNMYMG+ArialMT>          27
+GLYPH<c=17,font=/MKCMFD+Calibri-Light>     6
+GLYPH<c=17,font=/MKCMFE+TimesNewRoman>    36
+GLYPH<c=17,font=/MKCMIE+Times>            13
+GLYPH<c=17,font=/WNMYMG+ArialMT>           7
+GLYPH<c=18,font=/MKCMFD+Calibri-Light>    29
+GLYPH<c=18,font=/MKCMFE+TimesNewRoman>    11
+GLYPH<c=18,font=/MKCMID+Calibri-LightItalic> 7
+GLYPH<c=18,font=/MKCMIE+Times>            21
+GLYPH<c=19,font=/MKCMFE+TimesNewRoman>    31
+GLYPH<c=19,font=/MKCMIE+Times>             7
+GLYPH<c=19,font=/WNMYMG+ArialMT>           2
+GLYPH<c=20,font=/MKCMFE+TimesNewRoman>    16
+GLYPH<c=20,font=/MKCMIE+Times>             8
+GLYPH<c=20,font=/WNMYMG+ArialMT>           3
+GLYPH<c=21,font=/MKCMFE+TimesNewRoman>    36
+GLYPH<c=21,font=/MKCMIE+Times>             8
+GLYPH<c=21,font=/WNMYMG+ArialMT>          12
+GLYPH<c=22,font=/MKCMFE+TimesNewRoman>     9
+GLYPH<c=22,font=/MKCMIE+Times>             7
+GLYPH<c=23,font=/MKCMFE+TimesNewRoman>     5
+GLYPH<c=24,font=/MKCMFD+Calibri-Light>    22
+GLYPH<c=24,font=/MKCMFE+TimesNewRoman>     3
+GLYPH<c=24,font=/MKCMID+Calibri-LightItalic> 18
+GLYPH<c=24,font=/MKCMIE+Times>             2
+GLYPH<c=25,font=/BAIHLB+Corbel>            1
+GLYPH<c=25,font=/BJZMZG+Corbel>            1
+GLYPH<c=25,font=/CQPWUO+Corbel>            1
+GLYPH<c=25,font=/FAGNDO+Corbel>            1
+GLYPH<c=25,font=/GQAAHC+Corbel>            1
+GLYPH<c=25,font=/GYFRIR+Corbel>            1
+GLYPH<c=25,font=/LXPFYM+Corbel>            1
+GLYPH<c=25,font=/MKCMFE+TimesNewRoman>     2
+GLYPH<c=25,font=/MKCMIE+Times>             6
+GLYPH<c=25,font=/OABMIM+Corbel>            1
+GLYPH<c=25,font=/TWEGUR+Corbel>            1
+GLYPH<c=25,font=/UDHAGF+Corbel>            1
+GLYPH<c=25,font=/USWALJ+Corbel>            1
+GLYPH<c=25,font=/UURBPZ+Corbel>            1
+GLYPH<c=25,font=/ZYHJPZ+Corbel>            1
+GLYPH<c=25,font=/ZYKMJV+Corbel>            1
+GLYPH<c=26,font=/MKCMIE+Times>             7
+GLYPH<c=27,font=/MKCMFE+TimesNewRoman>     5
+GLYPH<c=27,font=/MKCMIE+Times>             4
+GLYPH<c=28,font=/MKCMFD+Calibri-Light>    20
+GLYPH<c=28,font=/MKCMFE+TimesNewRoman>     3
+GLYPH<c=28,font=/MKCMID+Calibri-LightItalic> 2
+GLYPH<c=28,font=/MKCMIE+Times>             6
+GLYPH<c=28,font=/WNMYMG+ArialMT>           1
+GLYPH<c=29,font=/MKCMFE+TimesNewRoman>     6
+GLYPH<c=29,font=/MKCMIE+Times>            12
+GLYPH<c=3,font=/MKCMFD+Calibri-Light>    935
+GLYPH<c=3,font=/MKCMFE+TimesNewRoman>    555
+GLYPH<c=3,font=/MKCMID+Calibri-LightItalic> 945
+GLYPH<c=3,font=/MKCMIE+Times>             29
+GLYPH<c=3,font=/WNMYMG+ArialMT>          200
+GLYPH<c=3,font=/YQLKOC+Arial-BoldMT>       9
+GLYPH<c=30,font=/MKCMFE+TimesNewRoman>     2
+GLYPH<c=30,font=/MKCMIE+Times>             6
+GLYPH<c=31,font=/MKCMFE+TimesNewRoman>     1
+GLYPH<c=4,font=/MKCMFD+Calibri-Light>     29
+```
 
 To attempt to resolve glyphs I attempt post processing instead of adding missing glyphs to source .dat files. To first detect glyphs I run `scripts/glyph_unifb_analysis.py` which detects instances of `uniFB` and `GLYPH<N>` in the FullText/text items on PagesJson columns. then ones theyre identified I attempt to resolve them using `scripts/fix_uni_tokens.py`. resolving `GLYPH<N>` requires to first map the `GLYPH<N>`s to their corresponding `uniFB` symbols
 
@@ -151,8 +309,11 @@ Provenance scripts output `PagesJson` (per-page content with bounding boxes, ref
 
 ## Other scripts
 
-`scripts/pdf_cleaner.py` - used to strip characters in PDFs which mess with the pdf text parsing and layout detection. used at yoru own risk
-`scripts/topic_text_reconstruction.py` - used to strip text of footnotes, section headers, references, author names, stray characters, and other text which could interfere with LDA topic modeling
+- `scripts/pdf_cleaner.py` 
+  - used to strip characters in PDFs which mess with the pdf text parsing and layout detection. used at yoru own risk
+
+- `scripts/topic_text_reconstruction.py` 
+  - used to strip text of footnotes, section headers, references, author names, stray characters, and other text which could interfere with LDA topic modeling
 
 ### GPU Configuration
 

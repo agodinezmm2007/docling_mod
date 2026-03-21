@@ -1,16 +1,20 @@
 # docling_extract_formulas_mp_multi_provenance.py
 
+import argparse
 import os
 import time
 import multiprocessing
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, ThreadPoolExecutor, as_completed, wait
 from functools import partial
+from pathlib import Path
 import pandas as pd
 import logging
 import json
 import tiktoken
 import re
 import glob
+from typing import Any
+from pydantic import BaseModel, ConfigDict, ValidationError
 # import any other modules that are GPU related only after the workers are initialized
 
 # list of GPU IDs you want to use:
@@ -23,6 +27,37 @@ next_gpu = multiprocessing.Value('i', 0)
 # per-worker globals (initialized once in worker_initializer, reused across PDFs)
 _worker_converter = None
 _worker_tokenizer = None
+
+OUTPUT_COLUMNS = [
+    "PDFPath",
+    "FileName",
+    "FullText",
+    "PagesJson",
+    "TablesJson",
+    "EquationsJson",
+    "TokenCount",
+    "NumPages",
+    "NumTables",
+    "NumPictures",
+    "Error",
+]
+RESULT_COLUMNS = OUTPUT_COLUMNS[2:]
+
+
+class ExtractionRow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    PDFPath: str
+    FileName: str
+    FullText: str
+    PagesJson: str
+    TablesJson: str
+    EquationsJson: str
+    TokenCount: int
+    NumPages: int
+    NumTables: int
+    NumPictures: int
+    Error: str | None
 
 def worker_initializer():
     """
@@ -54,7 +89,7 @@ def worker_initializer():
     # add file handler
     fh = logging.FileHandler(LOG_FILE, mode='a')
     fh.setLevel(logging.DEBUG)
-    fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(processName)s - %(levelname)s - %(message)s'))
     root_logger.addHandler(fh)
 
     logging.info(f"Worker {multiprocessing.current_process().name} assigned GPU:{os.environ['CUDA_VISIBLE_DEVICES']}")
@@ -527,68 +562,294 @@ def extract_pdf_with_docling(pdf_path: str, idx: int, output_dir=None) -> dict:
             "Error": str(e)
         }
 
-def do_docling_extraction(df: pd.DataFrame, max_workers=10, output_dir=None) -> pd.DataFrame:
+def _default_result(error: str | None = None) -> dict:
+    return {
+        "FullText": "ANALYSIS_ERROR" if error else "",
+        "PagesJson": "ANALYSIS_ERROR" if error else "",
+        "TablesJson": "ANALYSIS_ERROR" if error else "",
+        "EquationsJson": "ANALYSIS_ERROR" if error else "",
+        "TokenCount": 0,
+        "NumPages": 0,
+        "NumTables": 0,
+        "NumPictures": 0,
+        "Error": error,
+    }
+
+
+def initialize_output_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    for col in RESULT_COLUMNS:
+        if col not in out.columns:
+            out[col] = _default_result()[col]
+    return out
+
+
+def validate_output_row(pdf_path: str, file_name: str, raw_result: dict) -> dict:
+    try:
+        row = ExtractionRow(PDFPath=pdf_path, FileName=file_name, **raw_result)
+    except ValidationError as exc:
+        row = ExtractionRow(PDFPath=pdf_path, FileName=file_name, **_default_result(f"VALIDATION_ERROR: {exc}"))
+    return row.model_dump()
+
+
+def assign_row_result(df: pd.DataFrame, row_index: Any, result: dict) -> None:
+    for col in OUTPUT_COLUMNS:
+        df.at[row_index, col] = result[col]
+
+
+def row_is_complete(row: pd.Series) -> bool:
+    return row.get("Error") is None and bool(row.get("FullText"))
+
+
+def row_is_timeout(row: pd.Series) -> bool:
+    return row.get("Error") == "TIMEOUT"
+
+
+def row_should_retry(row: pd.Series, retry_errors: bool) -> bool:
+    if row_is_complete(row):
+        return False
+    if row_is_timeout(row):
+        return True
+    error = row.get("Error")
+    if error == "IN_PROGRESS":
+        return True
+    if error in (None, "", 0):
+        return True
+    return retry_errors
+
+
+def load_or_initialize_dataframe(input_df: pd.DataFrame, output_path: Path | None, resume: bool, retry_errors: bool) -> pd.DataFrame:
+    base = initialize_output_dataframe(input_df)
+    if not resume or output_path is None or not output_path.exists():
+        return base
+
+    existing = pd.read_feather(output_path)
+    missing = [col for col in OUTPUT_COLUMNS if col not in existing.columns]
+    if missing:
+        raise ValueError(f"Existing resume file is missing columns: {missing}")
+    if len(existing) != len(base):
+        raise ValueError("Existing resume file row count does not match input row count")
+    if existing["PDFPath"].tolist() != base["PDFPath"].tolist() or existing["FileName"].tolist() != base["FileName"].tolist():
+        raise ValueError("Existing resume file does not match input PDF ordering")
+
+    for idx in base.index:
+        row = existing.loc[idx]
+        if row_is_complete(row) or row_should_retry(row, retry_errors):
+            for col in RESULT_COLUMNS:
+                base.at[idx, col] = row[col]
+        elif row.get("Error"):
+            for col in RESULT_COLUMNS:
+                base.at[idx, col] = row[col]
+    return base
+
+
+def write_checkpoint(df: pd.DataFrame, output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = output_path.with_name(f"{output_path.name}.tmp")
+    df.to_feather(tmp_path)
+    os.replace(tmp_path, output_path)
+
+
+def should_flush_checkpoint(dirty_count: int, last_save_time: float, now: float, save_every: int, save_interval_seconds: float) -> bool:
+    if dirty_count <= 0:
+        return False
+    if dirty_count >= max(1, save_every):
+        return True
+    return (now - last_save_time) >= save_interval_seconds
+
+
+def create_executor(max_workers: int):
+    return ProcessPoolExecutor(max_workers=max_workers, initializer=worker_initializer)
+
+
+def shutdown_executor(executor, *, kill_workers: bool) -> None:
+    if executor is None:
+        return
+    try:
+        executor.shutdown(wait=not kill_workers, cancel_futures=True)
+    finally:
+        if kill_workers:
+            processes = getattr(executor, "_processes", None) or {}
+            for proc in processes.values():
+                if proc.is_alive():
+                    proc.terminate()
+            for proc in processes.values():
+                proc.join(timeout=5)
+                if proc.is_alive() and hasattr(proc, "kill"):
+                    proc.kill()
+
+
+def pending_row_indices(df: pd.DataFrame, retry_errors: bool) -> list[Any]:
+    return [idx for idx in df.index if row_should_retry(df.loc[idx], retry_errors)]
+
+
+def mark_missing_pdf(df: pd.DataFrame, row_index: Any, pdf_path: str, file_name: str) -> None:
+    result = validate_output_row(pdf_path, file_name, _default_result("PDF_NOT_FOUND"))
+    assign_row_result(df, row_index, result)
+
+
+def mark_timeout(df: pd.DataFrame, row_index: Any, pdf_path: str, file_name: str) -> None:
+    result = validate_output_row(pdf_path, file_name, _default_result("TIMEOUT"))
+    assign_row_result(df, row_index, result)
+
+
+def mark_in_progress(df: pd.DataFrame, row_index: Any, pdf_path: str, file_name: str) -> None:
+    result = validate_output_row(
+        pdf_path,
+        file_name,
+        {
+            "FullText": "",
+            "PagesJson": "",
+            "TablesJson": "",
+            "EquationsJson": "",
+            "TokenCount": 0,
+            "NumPages": 0,
+            "NumTables": 0,
+            "NumPictures": 0,
+            "Error": "IN_PROGRESS",
+        },
+    )
+    assign_row_result(df, row_index, result)
+
+
+def do_docling_extraction(
+    df: pd.DataFrame,
+    max_workers=10,
+    output_dir=None,
+    output_path: str | None = None,
+    save_every: int = 1,
+    save_interval_seconds: float = 30.0,
+    task_timeout_seconds: float = 600.0,
+    poll_interval_seconds: float = 5.0,
+    resume: bool = False,
+    retry_errors: bool = False,
+    executor_factory=create_executor,
+    wait_fn=wait,
+    clock_fn=time.monotonic,
+) -> pd.DataFrame:
     """
-    Processes each PDF row in parallel using the ProcessPoolExecutor.
-    This version uses the worker_initializer to distribute GPUs.
+    Processes each PDF row in parallel using a restartable ProcessPoolExecutor.
+    Completed rows are checkpointed incrementally; timed-out rows are marked and
+    the executor is recreated so the run can continue.
     """
     logging.info("Starting multiprocessing docling extraction on %d records using max_workers=%d", len(df), max_workers)
     print("[Step 9/11] Extracting text/tables/formulas via Docling (Multiprocessing Multi-GPU with Provenance)...")
-    for col in ["FullText", "PagesJson", "TablesJson", "EquationsJson", "TokenCount", "NumPages", "NumTables", "NumPictures", "Error"]:
-        if col not in df.columns:
-            df[col] = None if col == "Error" else (0 if col.startswith("Num") else "")
 
-    futures = {}
-    # the initializer ensures each worker gets its GPU assigned
-    with ProcessPoolExecutor(max_workers=max_workers, initializer=worker_initializer) as executor:
-        for idx, row in df.iterrows():
-            pdf_path = row.get("PDFPath", "")
-            if not pdf_path or not os.path.exists(pdf_path):
-                logging.warning(f"[MainProc] Missing PDF path for row {idx}: {pdf_path}")
-                df.at[idx, "FullText"] = "ANALYSIS_ERROR"
-                df.at[idx, "PagesJson"] = "ANALYSIS_ERROR"
-                df.at[idx, "TablesJson"] = "ANALYSIS_ERROR"
-                df.at[idx, "EquationsJson"] = "ANALYSIS_ERROR"
-                df.at[idx, "TokenCount"] = 0
-                df.at[idx, "Error"] = "PDF_NOT_FOUND"
+    checkpoint_path = Path(output_path) if output_path else None
+    df = load_or_initialize_dataframe(df, checkpoint_path, resume=resume, retry_errors=retry_errors)
+    dirty_count = 0
+    last_save_time = clock_fn()
+
+    rows_to_process = pending_row_indices(df, retry_errors=retry_errors)
+    pending: list[Any] = []
+    for idx in rows_to_process:
+        pdf_path = df.at[idx, "PDFPath"]
+        if not pdf_path or not os.path.exists(pdf_path):
+            logging.warning(f"[MainProc] Missing PDF path for row {idx}: {pdf_path}")
+            mark_missing_pdf(df, idx, str(pdf_path), str(df.at[idx, 'FileName']))
+            dirty_count += 1
+            now = clock_fn()
+            if checkpoint_path and should_flush_checkpoint(dirty_count, last_save_time, now, save_every, save_interval_seconds):
+                write_checkpoint(df, checkpoint_path)
+                dirty_count = 0
+                last_save_time = now
+        else:
+            pending.append(idx)
+
+    executor = None
+    in_flight: dict[Any, tuple[int, float]] = {}
+
+    try:
+        executor = executor_factory(max_workers)
+
+        while pending or in_flight:
+            while executor is not None and pending and len(in_flight) < max_workers:
+                idx = pending.pop(0)
+                pdf_path = df.at[idx, "PDFPath"]
+                mark_in_progress(df, idx, str(pdf_path), str(df.at[idx, "FileName"]))
+                dirty_count += 1
+                logging.info(f"[MainProc] Submitting row {idx}, pdf={pdf_path}")
+                future = executor.submit(extract_pdf_with_docling, pdf_path, idx, output_dir)
+                in_flight[future] = (idx, clock_fn())
+
+                now = clock_fn()
+                if checkpoint_path and should_flush_checkpoint(dirty_count, last_save_time, now, save_every, save_interval_seconds):
+                    write_checkpoint(df, checkpoint_path)
+                    dirty_count = 0
+                    last_save_time = now
+
+            if not in_flight:
+                break
+
+            done, _ = wait_fn(set(in_flight.keys()), timeout=poll_interval_seconds, return_when=FIRST_COMPLETED)
+            now = clock_fn()
+
+            if not done:
+                overdue = [future for future, (_, started_at) in in_flight.items() if now - started_at >= task_timeout_seconds]
+                if overdue:
+                    timed_out_rows = {in_flight[future][0] for future in overdue}
+                    lost_rows = [idx for future, (idx, _) in in_flight.items() if future not in overdue]
+
+                    for idx in sorted(timed_out_rows):
+                        logging.error(f"[MainProc] Timeout row {idx} after {task_timeout_seconds}s")
+                        mark_timeout(df, idx, str(df.at[idx, "PDFPath"]), str(df.at[idx, "FileName"]))
+                        dirty_count += 1
+
+                    if checkpoint_path:
+                        write_checkpoint(df, checkpoint_path)
+                        dirty_count = 0
+                        last_save_time = now
+
+                    shutdown_executor(executor, kill_workers=True)
+                    executor = executor_factory(max_workers)
+                    in_flight.clear()
+                    pending = lost_rows + pending
+                    continue
+
+                if checkpoint_path and should_flush_checkpoint(dirty_count, last_save_time, now, save_every, save_interval_seconds):
+                    write_checkpoint(df, checkpoint_path)
+                    dirty_count = 0
+                    last_save_time = now
                 continue
-            logging.info(f"[MainProc] Submitting row {idx}, pdf={pdf_path}")
-            future = executor.submit(extract_pdf_with_docling, pdf_path, idx, output_dir)
-            futures[future] = idx
 
-        for future in as_completed(futures):
-            irow = futures[future]
-            try:
-                result = future.result()
-                df.at[irow, "FullText"] = result["FullText"]
-                df.at[irow, "PagesJson"] = result["PagesJson"]
-                df.at[irow, "TablesJson"] = result["TablesJson"]
-                df.at[irow, "EquationsJson"] = result["EquationsJson"]
-                df.at[irow, "TokenCount"] = result["TokenCount"]
-                df.at[irow, "NumPages"] = result["NumPages"]
-                df.at[irow, "NumTables"] = result["NumTables"]
-                df.at[irow, "NumPictures"] = result["NumPictures"]
-                df.at[irow, "Error"] = result["Error"]
+            for future in done:
+                idx, _ = in_flight.pop(future)
+                pdf_path = str(df.at[idx, "PDFPath"])
+                file_name = str(df.at[idx, "FileName"])
+                try:
+                    raw_result = future.result()
+                except Exception as exc:
+                    logging.exception(f"Multiprocessing extraction exception row {idx}: {exc}")
+                    raw_result = _default_result(str(exc))
+
+                result = validate_output_row(pdf_path, file_name, raw_result)
+                assign_row_result(df, idx, result)
+                dirty_count += 1
 
                 if result["Error"]:
-                    logging.error(f"[!] Extraction error row {irow}: {result['Error']}")
-                    print(f"[!] Extraction error row {irow}: {result['Error']}")
+                    logging.error(f"[!] Extraction error row {idx}: {result['Error']}")
+                    print(f"[!] Extraction error row {idx}: {result['Error']}")
                 else:
-                    logging.info(f"Extraction successful row {irow}, pages={result['NumPages']}, tables={result['NumTables']}, tokens={result['TokenCount']}")
-                    print(f"[OK] Extraction successful row {irow}: {result['NumPages']} pages, {result['NumTables']} tables")
+                    logging.info(
+                        "Extraction successful row %s, pages=%s, tables=%s, tokens=%s",
+                        idx,
+                        result["NumPages"],
+                        result["NumTables"],
+                        result["TokenCount"],
+                    )
+                    print(f"[OK] Extraction successful row {idx}: {result['NumPages']} pages, {result['NumTables']} tables")
 
-            except Exception as e:
-                logging.exception(f"Multiprocessing extraction exception row {irow}: {e}")
-                df.at[irow, "FullText"] = "ANALYSIS_ERROR"
-                df.at[irow, "PagesJson"] = "ANALYSIS_ERROR"
-                df.at[irow, "TablesJson"] = "ANALYSIS_ERROR"
-                df.at[irow, "EquationsJson"] = "ANALYSIS_ERROR"
-                df.at[irow, "TokenCount"] = 0
-                df.at[irow, "NumPages"] = 0
-                df.at[irow, "NumTables"] = 0
-                df.at[irow, "NumPictures"] = 0
-                df.at[irow, "Error"] = str(e)
+            now = clock_fn()
+            if checkpoint_path and should_flush_checkpoint(dirty_count, last_save_time, now, save_every, save_interval_seconds):
+                write_checkpoint(df, checkpoint_path)
+                dirty_count = 0
+                last_save_time = now
 
+    finally:
+        shutdown_executor(executor, kill_workers=False)
+
+    if checkpoint_path:
+        write_checkpoint(df, checkpoint_path)
     logging.info("Multiprocessing Docling extraction complete.")
     return df
 
@@ -606,7 +867,6 @@ def create_pdf_dataframe(pdf_folder):
 
 
 if __name__ == "__main__":
-    import sys
     from datetime import datetime
 
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -631,12 +891,22 @@ if __name__ == "__main__":
     PDF_FOLDER = os.path.join(SCRIPT_DIR, "sample_pdfs")
     OUTPUT_DIR = os.path.join(SCRIPT_DIR, "output")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    OUTPUT_PATH = os.path.join(OUTPUT_DIR, f"multi_provenance_{timestamp}.feather")
+    DEFAULT_OUTPUT_PATH = os.path.join(OUTPUT_DIR, f"multi_provenance_{timestamp}.feather")
 
-    if len(sys.argv) > 1:
-        PDF_FOLDER = sys.argv[1]
-    if len(sys.argv) > 2:
-        OUTPUT_PATH = sys.argv[2]
+    parser = argparse.ArgumentParser(description="Extract Docling outputs to feather with checkpointing and resume support.")
+    parser.add_argument("pdf_folder", nargs="?", default=PDF_FOLDER, help="Folder containing PDFs to process")
+    parser.add_argument("output_path", nargs="?", default=None, help="Destination feather path")
+    parser.add_argument("--max-workers", type=int, default=len(GPU_IDS) * 5, help="Maximum number of worker processes")
+    parser.add_argument("--task-timeout-seconds", type=float, default=600.0, help="Per-task timeout before executor restart")
+    parser.add_argument("--poll-interval-seconds", type=float, default=5.0, help="Supervisor poll interval")
+    parser.add_argument("--save-every", type=int, default=1, help="Checkpoint after this many row updates")
+    parser.add_argument("--save-interval-seconds", type=float, default=30.0, help="Checkpoint if this much time passes with unsaved progress")
+    parser.add_argument("--resume", action="store_true", help="Resume from an existing output feather if present")
+    parser.add_argument("--retry-errors", action="store_true", help="When resuming, retry rows with non-timeout errors")
+    args = parser.parse_args()
+
+    PDF_FOLDER = args.pdf_folder
+    OUTPUT_PATH = args.output_path or DEFAULT_OUTPUT_PATH
 
     logging.info(f"PDF folder: {PDF_FOLDER}")
     logging.info(f"Output: {OUTPUT_PATH}")
@@ -647,8 +917,18 @@ if __name__ == "__main__":
     print(f"Found {len(df)} PDFs in {PDF_FOLDER}")
     print(df[["PDFPath", "FileName"]].to_string())
 
-    df = do_docling_extraction(df, max_workers=len(GPU_IDS) * 5)
+    df = do_docling_extraction(
+        df,
+        max_workers=args.max_workers,
+        output_dir=OUTPUT_DIR,
+        output_path=OUTPUT_PATH,
+        save_every=args.save_every,
+        save_interval_seconds=args.save_interval_seconds,
+        task_timeout_seconds=args.task_timeout_seconds,
+        poll_interval_seconds=args.poll_interval_seconds,
+        resume=args.resume,
+        retry_errors=args.retry_errors,
+    )
 
-    df.to_feather(OUTPUT_PATH)
     logging.info(f"Saved results to {OUTPUT_PATH}")
     print(f"Saved results to {OUTPUT_PATH}")

@@ -59,7 +59,7 @@ def worker_initializer():
     # add file handler
     fh = logging.FileHandler(LOG_FILE, mode='a')
     fh.setLevel(logging.DEBUG)
-    fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(processName)s - %(levelname)s - %(message)s'))
     root_logger.addHandler(fh)
 
     logging.info(f"Worker {multiprocessing.current_process().name} assigned GPU:{os.environ['CUDA_VISIBLE_DEVICES']}")
