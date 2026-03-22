@@ -24,6 +24,9 @@ import requests
 
 GLYPH_PATTERN = re.compile(r"GLYPH<[^>]+>")
 UNI_PATTERN = re.compile(r"/uni[0-9A-Fa-f]{4}")
+NONSPACE_PATTERN = re.compile(r"\S+")
+
+TOKEN_STRIP_CHARS = ".,;:!?()[]{}<>\"'“”‘’`"
 
 
 def classify_token(token: str) -> str:
@@ -35,6 +38,63 @@ def classify_token(token: str) -> str:
     if token.startswith("/uniFB"):
         return "unifb"
     return "uni_other"
+
+
+def _is_latin_extended_mojibake_char(char: str) -> bool:
+    codepoint = ord(char)
+    return (
+        0x0100 <= codepoint <= 0x024F
+        or 0x1E00 <= codepoint <= 0x1EFF
+    )
+
+
+def _is_rare_marker_char(char: str) -> bool:
+    codepoint = ord(char)
+    return (
+        0x0370 <= codepoint <= 0x037F
+        or 0x0208 <= codepoint <= 0x020F
+    )
+
+
+def classify_suspect_token(token: str) -> str | None:
+    stripped = token.strip(TOKEN_STRIP_CHARS)
+    if not stripped:
+        return None
+
+    if any(_is_rare_marker_char(char) for char in stripped):
+        return "mojibake_rare_marker"
+
+    latin_extended_count = sum(
+        1 for char in stripped if _is_latin_extended_mojibake_char(char)
+    )
+    ascii_alpha_count = sum(
+        1 for char in stripped if char.isascii() and char.isalpha()
+    )
+    alpha_total = latin_extended_count + ascii_alpha_count
+
+    if (
+        latin_extended_count >= 3
+        and alpha_total > 0
+        and (latin_extended_count / alpha_total) >= 0.3
+    ):
+        return "mojibake_latin_extended"
+
+    if len(stripped) >= 4 and any(char in stripped for char in "\\$&"):
+        ascii_graphic_count = sum(
+            1 for char in stripped if char.isascii() and not char.isspace()
+        )
+        shifted_ascii_count = sum(
+            1
+            for char in stripped
+            if char.isdigit() or ("A" <= char <= "Z") or char in "\\$&-"
+        )
+        if (
+            ascii_graphic_count > 0
+            and (shifted_ascii_count / ascii_graphic_count) >= 0.8
+        ):
+            return "mojibake_shifted_ascii"
+
+    return None
 
 
 def extract_doi(filename: str) -> str:
@@ -86,29 +146,46 @@ def extract_token_hits_from_text(
     text: str,
 ) -> list[dict]:
     hits = []
+    seen_hits: set[tuple[int, int, str]] = set()
+
+    def append_hit(start: int, end: int, token: str, token_type: str) -> None:
+        key = (start, end, token_type)
+        if key in seen_hits:
+            return
+        seen_hits.add(key)
+        before, after, snippet = extract_context(text, start, end)
+        hits.append(
+            {
+                "row_index": row_index,
+                "PDFPath": pdf_path,
+                "FileName": file_name,
+                "page_no": page_no,
+                "label": label,
+                "item_index": item_index,
+                "is_reference": bool(is_reference),
+                "token": token,
+                "token_type": token_type,
+                "source_kind": source_kind,
+                "table_column": table_column,
+                "context_before": before,
+                "context_after": after,
+                "context_snippet": snippet,
+                "bbox": json.dumps(bbox, ensure_ascii=False) if bbox is not None else None,
+                "charspan": json.dumps(charspan, ensure_ascii=False) if charspan is not None else None,
+            }
+        )
+
     for pattern in (GLYPH_PATTERN, UNI_PATTERN):
         for match in pattern.finditer(text):
-            before, after, snippet = extract_context(text, match.start(), match.end())
-            hits.append(
-                {
-                    "row_index": row_index,
-                    "PDFPath": pdf_path,
-                    "FileName": file_name,
-                    "page_no": page_no,
-                    "label": label,
-                    "item_index": item_index,
-                    "is_reference": bool(is_reference),
-                    "token": match.group(0),
-                    "token_type": classify_token(match.group(0)),
-                    "source_kind": source_kind,
-                    "table_column": table_column,
-                    "context_before": before,
-                    "context_after": after,
-                    "context_snippet": snippet,
-                    "bbox": json.dumps(bbox, ensure_ascii=False) if bbox is not None else None,
-                    "charspan": json.dumps(charspan, ensure_ascii=False) if charspan is not None else None,
-                }
-            )
+            token = match.group(0)
+            append_hit(match.start(), match.end(), token, classify_token(token))
+
+    for match in NONSPACE_PATTERN.finditer(text):
+        token = match.group(0)
+        token_type = classify_suspect_token(token)
+        if token_type is not None:
+            append_hit(match.start(), match.end(), token, token_type)
+
     return hits
 
 
@@ -290,9 +367,13 @@ def build_subset_dataframe(input_df: pd.DataFrame, hits_df: pd.DataFrame) -> pd.
         "unifb_count",
         "unique_glyph_tokens",
         "unique_uni_tokens",
+        "has_mojibake",
+        "mojibake_count",
+        "unique_mojibake_tokens",
         "doi",
         "publisher",
         "total_glyph_unifb_count",
+        "total_suspect_count",
     ]
     if hits_df.empty:
         result = input_df.iloc[0:0].copy()
@@ -312,6 +393,9 @@ def build_subset_dataframe(input_df: pd.DataFrame, hits_df: pd.DataFrame) -> pd.
         publisher = publisher_cache[doi]
         glyph_tokens = sorted(set(group.loc[group["token_type"].str.startswith("glyph"), "token"].tolist()))
         uni_tokens = sorted(set(group.loc[group["token_type"].isin(["unifb", "uni_other"]), "token"].tolist()))
+        mojibake_tokens = sorted(
+            set(group.loc[group["token_type"].str.startswith("mojibake"), "token"].tolist())
+        )
         records.append(
             {
                 "row_index": row_index,
@@ -321,9 +405,13 @@ def build_subset_dataframe(input_df: pd.DataFrame, hits_df: pd.DataFrame) -> pd.
                 "unifb_count": int((group["token_type"] == "unifb").sum()),
                 "unique_glyph_tokens": ",".join(glyph_tokens),
                 "unique_uni_tokens": ",".join(uni_tokens),
+                "has_mojibake": bool((group["token_type"].str.startswith("mojibake")).any()),
+                "mojibake_count": int(group["token_type"].str.startswith("mojibake").sum()),
+                "unique_mojibake_tokens": ",".join(mojibake_tokens),
                 "doi": doi,
                 "publisher": publisher,
                 "total_glyph_unifb_count": int(len(group)),
+                "total_suspect_count": int(len(group)),
             }
         )
 
@@ -335,7 +423,7 @@ def build_subset_dataframe(input_df: pd.DataFrame, hits_df: pd.DataFrame) -> pd.
 
 def print_summary(hits_df: pd.DataFrame) -> None:
     if hits_df.empty:
-        print("No GLYPH or /uni tokens found in PagesJson.")
+        print("No GLYPH, /uni, or suspect mojibake tokens found in PagesJson.")
         return
 
     token_type_counts = hits_df["token_type"].value_counts().to_dict()
@@ -354,7 +442,7 @@ def print_summary(hits_df: pd.DataFrame) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Analyze GLYPH and /uni tokens in PagesJson and emit page/item-level hit rows.")
+    parser = argparse.ArgumentParser(description="Analyze GLYPH, /uni, and suspect mojibake tokens in PagesJson and emit page/item-level hit rows.")
     parser.add_argument("input", help="Path to input feather file with PagesJson column")
     parser.add_argument(
         "--output",

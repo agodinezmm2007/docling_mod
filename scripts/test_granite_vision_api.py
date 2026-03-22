@@ -10,7 +10,7 @@ from PIL import Image
 import requests
 
 # image path
-IMAGE_PATH = "/mnt/c/Users/WSTATION/Desktop/docling_mods/data/figures/ijerph-19-04851_cleaned_fig4.png"
+IMAGE_PATH = "/tmp/granite_vision_doctags_test/10.1038_s41564-022-01185-x_892_page_1.png"
 
 # API endpoint (port 8006 -> 8000 in container)
 API_URL = "http://localhost:8006/v1/chat/completions"
@@ -40,7 +40,7 @@ messages = [
             },
             {
                 "type": "text",
-                "text": "Describe this image in detail, including any text, labels, and key features.",
+                "text": "Convert this page to docling.",
             },
         ],
     }
